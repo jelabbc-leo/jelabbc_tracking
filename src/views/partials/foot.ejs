@@ -1,0 +1,26 @@
+  <!-- Syncfusion JS -->
+  <script src="https://cdn.syncfusion.com/ej2/24.1.41/dist/ej2.min.js"></script>
+  <script src="/public/js/syncfusion-license.js"></script>
+
+  <!-- Mobile menu toggle -->
+  <script>
+    (function() {
+      var btn = document.getElementById('mobile-menu-btn');
+      var menu = document.getElementById('mobile-menu');
+      var iconOpen = document.getElementById('menu-icon-open');
+      var iconClose = document.getElementById('menu-icon-close');
+
+      if (btn && menu) {
+        btn.addEventListener('click', function() {
+          var isOpen = !menu.classList.contains('hidden');
+          menu.classList.toggle('hidden');
+          if (iconOpen && iconClose) {
+            iconOpen.classList.toggle('hidden', !isOpen);
+            iconClose.classList.toggle('hidden', isOpen);
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

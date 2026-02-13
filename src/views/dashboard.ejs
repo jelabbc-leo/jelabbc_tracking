@@ -1,0 +1,424 @@
+<%- include('partials/head') %>
+<%- include('partials/navbar') %>
+
+<main class="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
+  <!-- Header con titulo y controles -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <p class="text-sm text-gray-500 mt-1">Monitoreo de viajes en tiempo real</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Indicador de ultima actualizacion -->
+      <span id="last-update" class="text-xs text-gray-400 hidden sm:inline">
+        Actualizado: <span id="last-update-time"><%= new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) %></span>
+      </span>
+      <!-- Auto-refresh toggle -->
+      <label class="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+        <div class="relative">
+          <input type="checkbox" id="auto-refresh-toggle" checked class="sr-only peer">
+          <div class="w-9 h-5 bg-gray-300 peer-checked:bg-blue-600 rounded-full transition-colors"></div>
+          <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+        </div>
+        <span class="hidden sm:inline">Auto</span>
+        <span id="refresh-countdown" class="text-xs text-gray-400 tabular-nums w-5"></span>
+      </label>
+      <!-- Boton actualizar -->
+      <button onclick="DashboardModule.refresh()" id="refresh-btn"
+              class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">
+        <svg id="refresh-icon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- TARJETAS RESUMEN (Syncfusion Dashboard Layout)                 -->
+  <!-- ============================================================== -->
+  <div id="dashboard-layout">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <!-- Card: Viajes Activos -->
+      <div class="dashboard-card group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all hover:border-blue-200">
+        <div class="flex items-center justify-between mb-3">
+          <div class="bg-blue-50 text-blue-600 p-2.5 rounded-lg group-hover:bg-blue-100 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+            </svg>
+          </div>
+        </div>
+        <p id="stat-total" class="text-3xl font-bold text-gray-900 tabular-nums"><%= stats.total %></p>
+        <p class="text-xs font-medium text-gray-500 mt-1">Viajes Activos</p>
+      </div>
+
+      <!-- Card: En Ruta -->
+      <div class="dashboard-card group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all hover:border-green-200 cursor-pointer" onclick="DashboardModule.filterMap('en_ruta')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="bg-green-50 text-green-600 p-2.5 rounded-lg group-hover:bg-green-100 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+            </svg>
+          </div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">En ruta</span>
+        </div>
+        <p id="stat-enruta" class="text-3xl font-bold text-green-600 tabular-nums"><%= stats.enRuta %></p>
+        <p class="text-xs font-medium text-gray-500 mt-1">En Ruta</p>
+      </div>
+
+      <!-- Card: En Espera -->
+      <div class="dashboard-card group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all hover:border-amber-200 cursor-pointer" onclick="DashboardModule.filterMap('en_espera')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="bg-amber-50 text-amber-600 p-2.5 rounded-lg group-hover:bg-amber-100 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Esperando</span>
+        </div>
+        <p id="stat-enespera" class="text-3xl font-bold text-amber-600 tabular-nums"><%= stats.enEspera %></p>
+        <p class="text-xs font-medium text-gray-500 mt-1">En Espera</p>
+      </div>
+
+      <!-- Card: Cargando -->
+      <div class="dashboard-card group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all hover:border-indigo-200 cursor-pointer" onclick="DashboardModule.filterMap('cargando')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="bg-indigo-50 text-indigo-600 p-2.5 rounded-lg group-hover:bg-indigo-100 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
+          </div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">Cargando</span>
+        </div>
+        <p id="stat-cargando" class="text-3xl font-bold text-indigo-600 tabular-nums"><%= stats.cargando %></p>
+        <p class="text-xs font-medium text-gray-500 mt-1">Cargando</p>
+      </div>
+
+      <!-- Card: Completados Hoy -->
+      <div class="dashboard-card group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all hover:border-teal-200">
+        <div class="flex items-center justify-between mb-3">
+          <div class="bg-teal-50 text-teal-600 p-2.5 rounded-lg group-hover:bg-teal-100 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+        </div>
+        <p id="stat-completados" class="text-3xl font-bold text-teal-600 tabular-nums"><%= stats.completadosHoy %></p>
+        <p class="text-xs font-medium text-gray-500 mt-1">Completados Hoy</p>
+      </div>
+
+      <!-- Card: Alertas -->
+      <div class="dashboard-card group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all <%= stats.alertas > 0 ? 'border-red-300 bg-red-50' : 'hover:border-gray-300' %>">
+        <div class="flex items-center justify-between mb-3">
+          <div class="<%= stats.alertas > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-50 text-gray-400' %> p-2.5 rounded-lg transition-colors">
+            <svg class="w-5 h-5 <%= stats.alertas > 0 ? 'animate-pulse' : '' %>" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+          </div>
+          <% if (stats.alertas > 0) { %>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 animate-pulse">!</span>
+          <% } %>
+        </div>
+        <p id="stat-alertas" class="text-3xl font-bold <%= stats.alertas > 0 ? 'text-red-600' : 'text-gray-400' %> tabular-nums"><%= stats.alertas %></p>
+        <p class="text-xs font-medium text-gray-500 mt-1">Alertas</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- AREA PRINCIPAL: Mapa + Panel lateral                           -->
+  <!-- ============================================================== -->
+  <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+    <!-- Columna izquierda: Google Maps (3/4) -->
+    <div class="xl:col-span-3">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <!-- Header del mapa con filtros -->
+        <div class="px-5 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold text-gray-800 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            Mapa de Unidades
+          </h2>
+          <div class="flex items-center gap-2">
+            <!-- Filtros de estado -->
+            <div class="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              <button onclick="DashboardModule.filterMap('all')" data-filter="all"
+                      class="map-filter-btn px-2.5 py-1 rounded-md text-xs font-medium transition-colors bg-white text-gray-700 shadow-sm">
+                Todos
+              </button>
+              <button onclick="DashboardModule.filterMap('en_ruta')" data-filter="en_ruta"
+                      class="map-filter-btn px-2.5 py-1 rounded-md text-xs font-medium transition-colors text-gray-500 hover:text-gray-700">
+                En Ruta
+              </button>
+              <button onclick="DashboardModule.filterMap('en_espera')" data-filter="en_espera"
+                      class="map-filter-btn px-2.5 py-1 rounded-md text-xs font-medium transition-colors text-gray-500 hover:text-gray-700">
+                En Espera
+              </button>
+              <button onclick="DashboardModule.filterMap('cargando')" data-filter="cargando"
+                      class="map-filter-btn px-2.5 py-1 rounded-md text-xs font-medium transition-colors text-gray-500 hover:text-gray-700">
+                Cargando
+              </button>
+            </div>
+            <!-- Toggle mapa satelital -->
+            <button onclick="DashboardModule.toggleMapType()" id="map-type-btn"
+                    class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Cambiar tipo de mapa">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+              </svg>
+            </button>
+            <!-- Fullscreen -->
+            <button onclick="DashboardModule.toggleFullscreen()" id="fullscreen-btn"
+                    class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Pantalla completa">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <!-- Mapa -->
+        <div id="map-container" class="relative">
+          <div id="map" style="height: 520px; width: 100%;"></div>
+          <!-- Leyenda del mapa -->
+          <div class="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs space-y-1.5">
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-green-500 inline-block shadow-sm"></span>
+              <span class="text-gray-600">En ruta</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-amber-500 inline-block shadow-sm"></span>
+              <span class="text-gray-600">En espera</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-indigo-500 inline-block shadow-sm"></span>
+              <span class="text-gray-600">Cargando</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-red-500 inline-block shadow-sm ring-2 ring-red-200"></span>
+              <span class="text-gray-600">Alerta paro</span>
+            </div>
+          </div>
+          <!-- Loading overlay -->
+          <div id="map-loading" class="hidden absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-10">
+            <div class="flex items-center gap-2 text-gray-500">
+              <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span class="text-sm font-medium">Actualizando...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna derecha: Panel lateral (1/4) -->
+    <div class="xl:col-span-1 space-y-6">
+
+      <!-- Lista de viajes activos -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-gray-800">Viajes Activos</h3>
+          <a href="/viajes" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Ver todos</a>
+        </div>
+        <div id="trip-list" class="max-h-[320px] overflow-y-auto divide-y divide-gray-100">
+          <% if (viajes.length === 0) { %>
+          <div class="p-6 text-center">
+            <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+            </svg>
+            <p class="text-sm text-gray-400">No hay viajes activos</p>
+          </div>
+          <% } else { %>
+            <% viajes.slice(0, 20).forEach(function(viaje) { %>
+            <div class="trip-item px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                 data-viaje-id="<%= viaje.id %>"
+                 data-lat="<%= viaje.ultima_lat || '' %>"
+                 data-lng="<%= viaje.ultima_lng || '' %>"
+                 onclick="DashboardModule.focusTrip(this)">
+              <div class="flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-gray-900 truncate">
+                    <%= viaje.numero_economico || ('Viaje #' + viaje.id) %>
+                  </p>
+                  <p class="text-xs text-gray-500 truncate mt-0.5">
+                    <%= viaje.origen || '—' %> → <%= viaje.destino || '—' %>
+                  </p>
+                </div>
+                <div class="flex-shrink-0 ml-2">
+                  <%
+                    var badgeColor = viaje.estado_actual === 'en_ruta' ? 'green'
+                                   : viaje.estado_actual === 'en_espera' ? 'amber'
+                                   : viaje.estado_actual === 'cargando' ? 'indigo' : 'gray';
+                  %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-<%= badgeColor %>-100 text-<%= badgeColor %>-700">
+                    <span class="w-1.5 h-1.5 rounded-full bg-<%= badgeColor %>-500 mr-1.5 <%= viaje.estado_actual === 'en_ruta' ? 'animate-pulse' : '' %>"></span>
+                    <%= viaje.estado_actual === 'en_ruta' ? 'Ruta' : viaje.estado_actual === 'en_espera' ? 'Espera' : viaje.estado_actual === 'cargando' ? 'Cargando' : viaje.estado_actual %>
+                  </span>
+                </div>
+              </div>
+              <% if (viaje.ultima_lat && viaje.ultima_lng) { %>
+              <div class="flex items-center gap-1 mt-1.5">
+                <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                </svg>
+                <span class="text-xs text-gray-400 tabular-nums"><%= parseFloat(viaje.ultima_lat).toFixed(4) %>, <%= parseFloat(viaje.ultima_lng).toFixed(4) %></span>
+              </div>
+              <% } %>
+            </div>
+            <% }); %>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Proveedores GPS Activos -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-gray-800">Proveedores GPS</h3>
+          <a href="/providers" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Gestionar</a>
+        </div>
+        <div class="p-4">
+          <% if (providers.length === 0) { %>
+          <div class="text-center py-3">
+            <p class="text-sm text-gray-400">Sin proveedores activos</p>
+            <a href="/providers" class="text-xs text-blue-600 hover:underline mt-1 inline-block">Configurar</a>
+          </div>
+          <% } else { %>
+          <div class="space-y-2.5">
+            <% providers.slice(0, 5).forEach(function(prov) { %>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2 h-2 rounded-full flex-shrink-0 <%= prov.activo ? 'bg-green-500' : 'bg-gray-300' %>"></span>
+                <span class="text-sm text-gray-700 truncate"><%= prov.nombre %></span>
+              </div>
+              <% if (prov.ultimo_scrape) { %>
+              <span class="text-xs text-gray-400 flex-shrink-0 tabular-nums">
+                <%= new Date(prov.ultimo_scrape).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) %>
+              </span>
+              <% } else { %>
+              <span class="text-xs text-gray-300">—</span>
+              <% } %>
+            </div>
+            <% }); %>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Actividad Reciente (Eventos) -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-200">
+          <h3 class="text-sm font-semibold text-gray-800">Actividad Reciente</h3>
+        </div>
+        <div class="max-h-[280px] overflow-y-auto">
+          <% if (events.length === 0) { %>
+          <div class="p-6 text-center">
+            <p class="text-sm text-gray-400">Sin actividad reciente</p>
+          </div>
+          <% } else { %>
+          <div class="divide-y divide-gray-100">
+            <% events.slice(0, 10).forEach(function(ev) { %>
+            <%
+              var evIcon = '📍';
+              var evColor = 'gray';
+              if (ev.tipo_evento === 'ubicacion_actualizada') { evIcon = '📍'; evColor = 'blue'; }
+              else if (ev.tipo_evento === 'inicio_ruta') { evIcon = '🚀'; evColor = 'green'; }
+              else if (ev.tipo_evento === 'detencion_detectada') { evIcon = '⚠️'; evColor = 'red'; }
+              else if (ev.tipo_evento === 'scrape_exitoso') { evIcon = '✅'; evColor = 'green'; }
+              else if (ev.tipo_evento === 'scrape_error') { evIcon = '❌'; evColor = 'red'; }
+              else if (ev.tipo_evento === 'llegada_destino') { evIcon = '🏁'; evColor = 'teal'; }
+              else if (ev.tipo_evento && ev.tipo_evento.startsWith('llamada_')) { evIcon = '📞'; evColor = 'purple'; }
+              else if (ev.tipo_evento === 'alerta_paro_ia') { evIcon = '🔔'; evColor = 'red'; }
+              else { evIcon = '📋'; evColor = 'gray'; }
+            %>
+            <div class="px-4 py-2.5 hover:bg-gray-50 transition-colors">
+              <div class="flex items-start gap-2.5">
+                <span class="text-sm mt-0.5 flex-shrink-0"><%= evIcon %></span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-medium text-gray-700 truncate">
+                    <% if (ev.numero_economico) { %><span class="text-gray-900"><%= ev.numero_economico %></span> — <% } %>
+                    <%= ev.tipo_evento ? ev.tipo_evento.replace(/_/g, ' ') : 'Evento' %>
+                  </p>
+                  <% if (ev.descripcion) { %>
+                  <p class="text-xs text-gray-400 truncate mt-0.5"><%= ev.descripcion %></p>
+                  <% } %>
+                  <p class="text-xs text-gray-300 mt-0.5">
+                    <%= ev.fecha_hora ? new Date(ev.fecha_hora).toLocaleString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' %>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <% }); %>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Resumen Scraping (mini-card) -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <h3 class="text-sm font-semibold text-gray-800 mb-3">Scraping 24h</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <p class="text-lg font-bold text-gray-900 tabular-nums"><%= scrapeStats.total_scrapes || 0 %></p>
+            <p class="text-xs text-gray-400">Scrapes</p>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-green-600 tabular-nums"><%= scrapeStats.exitosos || 0 %></p>
+            <p class="text-xs text-gray-400">Exitosos</p>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-blue-600 tabular-nums"><%= scrapeStats.total_coords || 0 %></p>
+            <p class="text-xs text-gray-400">Coords nuevas</p>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-red-600 tabular-nums"><%= scrapeStats.errores || 0 %></p>
+            <p class="text-xs text-gray-400">Errores</p>
+          </div>
+        </div>
+        <% if (scrapeStats.ultimo_scrape) { %>
+        <div class="mt-3 pt-3 border-t border-gray-100">
+          <p class="text-xs text-gray-400">
+            Ultimo: <%= new Date(scrapeStats.ultimo_scrape).toLocaleString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %>
+          </p>
+        </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- TABLA DE VIAJES ACTIVOS (Syncfusion Grid)                      -->
+  <!-- ============================================================== -->
+  <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+      <h2 class="text-base font-semibold text-gray-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+        </svg>
+        Detalle de Viajes Activos
+      </h2>
+      <span class="text-xs text-gray-400"><%= stats.total %> viaje<%= stats.total !== 1 ? 's' : '' %></span>
+    </div>
+    <div id="viajes-grid"></div>
+  </div>
+</main>
+
+<!-- Datos para JS -->
+<script>
+  var viajesData = <%- JSON.stringify(viajes) %>;
+  var statsData = <%- JSON.stringify(stats) %>;
+  var alertaViajesData = <%- JSON.stringify(alertaViajes) %>;
+</script>
+
+<!-- Google Maps API -->
+<% if (googleMapsApiKey) { %>
+<script src="https://maps.googleapis.com/maps/api/js?key=<%= googleMapsApiKey %>&callback=initMap" async defer></script>
+<% } %>
+
+<!-- Scripts del dashboard -->
+<script src="/public/js/map.js"></script>
+<script src="/public/js/dashboard.js"></script>
+
+<%- include('partials/foot') %>
