@@ -14,6 +14,11 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ---------------------------------------------------------------------------
+// Trust proxy (Azure App Service corre detras de un reverse proxy)
+// ---------------------------------------------------------------------------
+app.set('trust proxy', 1);
+
+// ---------------------------------------------------------------------------
 // View engine (EJS)
 // ---------------------------------------------------------------------------
 app.set('view engine', 'ejs');
@@ -31,9 +36,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'jelabbc-default-secret',
   resave: false,
   saveUninitialized: false,
+  proxy: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production' && !process.env.DISABLE_SECURE_COOKIE,
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: 'lax',
     maxAge: 8 * 60 * 60 * 1000 // 8 horas
   }
 }));
@@ -79,6 +86,11 @@ app.use('/viajes', requireAuth, viajesRoutes);
 app.use('/coordinates', requireAuth, coordinatesRoutes);
 app.use('/ai', requireAuth, aiRoutes);
 app.use('/logs', requireAuth, logsRoutes);
+
+// Health check (Azure App Service usa esto para verificar que la app esta viva)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
 
 // Redirect root to dashboard (if logged in) or login
 app.get('/', (req, res) => {
