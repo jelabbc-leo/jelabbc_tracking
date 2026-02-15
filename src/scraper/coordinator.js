@@ -1,10 +1,10 @@
 /**
- * Coordinator - Orquesta el scraping de GPS y guarda resultados via API
+ * Coordinator - Orquesta la extraccion de coordenadas GPS y guarda via API
  *
  * Responsabilidades:
  *  - Cargar proveedores activos de la BD (conf_providers)
  *  - Cargar viajes activos (unidades_viajes en_ruta)
- *  - Para cada proveedor: lanzar browser, login, extraer coordenadas
+ *  - Para cada proveedor: extraer coordenadas via HTTP directo (http-fetcher)
  *  - Matchear coordenadas extraidas con viajes activos
  *  - Guardar nuevas coordenadas en op_coordinates via API
  *  - Actualizar ultima posicion en unidades_viajes
@@ -12,14 +12,15 @@
  *  - Registrar eventos en eventos_unidad
  *  - Manejo robusto de errores (un proveedor fallido no afecta a los demas)
  *
+ * NOTA: Se usa http-fetcher (llamadas HTTP directas) en lugar de Puppeteer.
+ * Puppeteer/extractor.js se mantiene para desarrollo local si se necesita.
+ *
  * Se ejecuta periodicamente via node-cron desde server.js
  */
 
 'use strict';
 
-const browser = require('./browser');
-const extractor = require('./extractor');
-const coordDetector = require('./coord-detector');
+const httpFetcher = require('./http-fetcher');
 const { internalClient: api } = require('../api/client');
 
 const LOG_PREFIX = '[Coordinator]';
@@ -82,7 +83,7 @@ async function run() {
 
     // 4. Procesar cada proveedor
     for (const provider of providers) {
-      const providerResult = await _scrapeProvider(provider, activeTrips);
+      const providerResult = await _fetchProvider(provider, activeTrips);
       summary.details.push(providerResult);
 
       if (providerResult.success) {
@@ -106,17 +107,16 @@ async function run() {
 }
 
 // ---------------------------------------------------------------------------
-// Scraping por proveedor
+// Extraccion por proveedor (HTTP directo, sin Puppeteer)
 // ---------------------------------------------------------------------------
 
 /**
- * Procesa un proveedor GPS individual.
+ * Procesa un proveedor GPS usando llamadas HTTP directas.
  * @private
  */
-async function _scrapeProvider(provider, activeTrips) {
+async function _fetchProvider(provider, activeTrips) {
   const startTime = new Date();
   let logId = null;
-  let browserInstance = null;
 
   log('info', `--- Procesando proveedor: ${provider.nombre} (ID: ${provider.id}) ---`);
 
@@ -128,77 +128,31 @@ async function _scrapeProvider(provider, activeTrips) {
   }
 
   try {
-    // 1. Obtener browser
-    browserInstance = await browser.acquireBrowser();
-    if (!browserInstance) {
-      throw new Error('No se pudo obtener un browser del pool');
-    }
+    // 1. Extraer coordenadas via HTTP directo
+    const fetchResult = await httpFetcher.fetch(provider.url);
+    const coords = fetchResult.coords || [];
 
-    // 2. Crear pagina y navegar
-    const page = await browser.createPage(browserInstance);
+    log('info', `${provider.nombre}: ${coords.length} coordenadas extraidas (${fetchResult.platform}, ${fetchResult.source})`);
 
-    // Desactivar intercepcion para network strategy (se configura en extractor)
-    // Necesitamos reconfigurar: el createPage setea intercepcion para bloquear imagenes
-    // pero necesitamos tambien capturar las responses
-    await page.setRequestInterception(false);
-
-    // Re-habilitar intercepcion permitiendo solo bloquear media/font
-    await page.setRequestInterception(true);
-    page.removeAllListeners('request');
-    page.on('request', (req) => {
-      const type = req.resourceType();
-      if (['media', 'font'].includes(type)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
-
-    await browser.navigateTo(page, provider.url, { extraWaitMs: 3000 });
-
-    // 3. Login si es necesario
-    if (provider.username && provider.selector_user) {
-      const loginNeeded = await browser.needsLogin(page);
-      if (loginNeeded) {
-        const loginResult = await browser.performLogin(page, provider);
-        if (!loginResult.success) {
-          throw new Error(`Login fallido: ${loginResult.error}`);
-        }
-      }
-    }
-
-    // 4. Extraer coordenadas con las 3 estrategias
-    const extractionResult = await extractor.extractAll(page);
-    const coords = extractionResult.coords;
-
-    log('info', `${provider.nombre}: ${coords.length} coordenadas extraidas`);
-
-    // 5. Matchear con viajes activos y guardar
+    // 2. Matchear con viajes activos y guardar
     const savedCount = await _processAndSaveCoords(coords, provider, activeTrips);
 
-    // 6. Actualizar proveedor
+    // 3. Actualizar proveedor
     await _updateProviderStatus(provider.id, null);
 
-    // 7. Cerrar pagina
-    await page.close().catch(() => {});
-
-    // 8. Actualizar log de scrape
-    const sourcesUsed = Object.entries(extractionResult.strategies)
-      .filter(([, v]) => v.success && v.count > 0)
-      .map(([k]) => k)
-      .join(',') || 'none';
-
+    // 4. Actualizar log de scrape
     if (logId) {
-      await _updateScrapeLog(logId, 'success', coords.length, savedCount, sourcesUsed);
+      await _updateScrapeLog(logId, 'success', coords.length, savedCount, fetchResult.source);
     }
 
     const result = {
       success: true,
       provider: provider.nombre,
       providerId: provider.id,
+      platform: fetchResult.platform,
       coordsFound: coords.length,
       coordsSaved: savedCount,
-      strategies: extractionResult.strategies,
+      source: fetchResult.source,
       duration: Date.now() - startTime.getTime(),
     };
 
@@ -221,12 +175,6 @@ async function _scrapeProvider(provider, activeTrips) {
       error: err.message,
       duration: Date.now() - startTime.getTime(),
     };
-
-  } finally {
-    // Liberar browser
-    if (browserInstance) {
-      await browser.releaseBrowser(browserInstance, false);
-    }
   }
 }
 
@@ -253,7 +201,7 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
 
     // Guardar todas las coords asociadas al primer viaje activo como fallback
     if (activeTrips.length > 0) {
-      for (const coord of coords.slice(0, 50)) { // Limite de seguridad
+      for (const coord of coords.slice(0, 50)) {
         try {
           await api.insert('op_coordinates', {
             id_unidad_viaje: activeTrips[0].id,
@@ -263,7 +211,7 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
             velocidad: coord.speed || null,
             rumbo: coord.heading || null,
             fecha_gps: coord.timestamp || null,
-            fuente: coord.source || 'scraper',
+            fuente: coord.source || 'http',
           });
           savedCount++;
         } catch (err) {
@@ -276,9 +224,7 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
 
   // Para cada viaje del proveedor
   for (const trip of providerTrips) {
-    // Usar la coordenada mas reciente para este viaje
-    // (en un sistema real, se haria matching por ID de dispositivo/unidad)
-    const tripCoords = coords; // Por ahora asignar todas
+    const tripCoords = coords;
 
     for (const coord of tripCoords.slice(0, 50)) {
       try {
@@ -295,7 +241,7 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
           velocidad: coord.speed || null,
           rumbo: coord.heading || null,
           fecha_gps: coord.timestamp || null,
-          fuente: coord.source || 'scraper',
+          fuente: coord.source || 'http',
         });
         savedCount++;
 
@@ -304,7 +250,7 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
           ultima_lat: coord.lat,
           ultima_lng: coord.lng,
           ultima_actualizacion: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        }).catch(() => {}); // No critico
+        }).catch(() => {});
 
         // Registrar evento
         await _logEvent(trip.id, 'scrape_exitoso',
@@ -340,7 +286,7 @@ async function _isCoordDuplicate(tripId, coord) {
 
     return existing && existing.length > 0;
   } catch {
-    return false; // En caso de error, no bloquear
+    return false;
   }
 }
 
@@ -400,11 +346,9 @@ async function _createScrapeLog(providerId, startTime) {
       estado: 'running',
     });
 
-    // Intentar extraer el ID del resultado
     if (result && result.id) return result.id;
     if (result && result.insertId) return result.insertId;
 
-    // Si no hay ID, buscar el ultimo log
     const rows = await api.query(
       `SELECT id FROM log_scrape WHERE provider_id = ${providerId} ORDER BY id DESC LIMIT 1`
     );
@@ -467,7 +411,7 @@ async function _logEvent(tripId, tipo, descripcion) {
       ocurrido_en: new Date().toISOString().slice(0, 19).replace('T', ' '),
     });
   } catch {
-    // No critico, solo log
+    // No critico
   }
 }
 
@@ -530,7 +474,6 @@ async function runDueProviders() {
   try {
     await api.ensureToken();
 
-    // Cargar TODOS los proveedores activos con su ultimo_scrape
     const allProviders = await _loadActiveProviders();
 
     if (allProviders.length === 0) {
@@ -542,7 +485,7 @@ async function runDueProviders() {
     const now = Date.now();
     const dueProviders = allProviders.filter(p => {
       const intervaloMs = (p.intervalo_minutos || 5) * 60 * 1000;
-      if (!p.ultimo_scrape) return true; // Nunca ha corrido
+      if (!p.ultimo_scrape) return true;
       const lastScrape = new Date(p.ultimo_scrape).getTime();
       return (now - lastScrape) >= intervaloMs;
     });
@@ -557,13 +500,11 @@ async function runDueProviders() {
 
     log('info', `${dueProviders.length}/${allProviders.length} proveedores necesitan scraping`);
 
-    // Cargar viajes activos
     const activeTrips = await _loadActiveTrips();
     log('info', `${activeTrips.length} viajes en ruta`);
 
-    // Procesar solo los proveedores due
     for (const provider of dueProviders) {
-      const providerResult = await _scrapeProvider(provider, activeTrips);
+      const providerResult = await _fetchProvider(provider, activeTrips);
       summary.details.push(providerResult);
 
       if (providerResult.success) {
@@ -611,7 +552,7 @@ async function runForProvider(providerId) {
 
     const activeTrips = await _loadActiveTrips();
 
-    return await _scrapeProvider(providers[0], activeTrips);
+    return await _fetchProvider(providers[0], activeTrips);
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -630,7 +571,7 @@ function status() {
     isRunning,
     lastRunTime: lastRunTime ? lastRunTime.toISOString() : null,
     lastRunResult,
-    browserPool: browser.poolStatus(),
+    mode: 'http',
   };
 }
 

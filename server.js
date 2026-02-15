@@ -18,7 +18,6 @@ const PORT = process.env.PORT || 8080;
 // Scraper & Scheduler — requires y estado
 // ---------------------------------------------------------------------------
 const coordinator = require('./src/scraper/coordinator');
-const browserManager = require('./src/scraper/browser');
 const stopDetector = require('./src/ai/stop-detector');
 const vapiTrigger = require('./src/ai/vapi-trigger');
 
@@ -300,7 +299,6 @@ console.log(`[AI] Deteccion de paros: ${aiDetectionEnabled ? 'habilitada' : 'des
 async function gracefulShutdown(signal) {
   console.log(`[Cleanup] ${signal} recibido, cerrando...`);
   schedulerTask.stop();
-  await browserManager.closeAll();
   process.exit(0);
 }
 
