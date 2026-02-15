@@ -187,52 +187,58 @@ async function _fetchProvider(provider, activeTrips) {
  * @private
  */
 async function _processAndSaveCoords(coords, provider, activeTrips) {
-  if (!coords || coords.length === 0 || activeTrips.length === 0) return 0;
+  if (!coords || coords.length === 0) return 0;
 
   let savedCount = 0;
 
-  // Para cada viaje activo que pertenezca a este proveedor
-  const providerTrips = activeTrips.filter(t =>
-    t.provider_id === provider.id || !t.provider_id
-  );
+  // Loguear siempre las coordenadas encontradas
+  for (const c of coords.slice(0, 5)) {
+    log('info', `  Coord: ${c.lat.toFixed(6)}, ${c.lng.toFixed(6)} | speed=${c.speed ?? '-'} | stop=${c.isStop ?? '-'} | ${c.timestamp || '-'}`);
+  }
+  if (coords.length > 5) log('info', `  ... y ${coords.length - 5} mas`);
 
-  if (providerTrips.length === 0) {
-    log('info', `No hay viajes activos para proveedor ${provider.nombre}, guardando coords genericas`);
+  // Sin viajes activos: guardar con id_unidad_viaje = NULL para verificar scraping
+  if (activeTrips.length === 0) {
+    log('info', `Sin viajes activos, guardando ${Math.min(coords.length, 50)} coords sin viaje asociado`);
 
-    // Guardar todas las coords asociadas al primer viaje activo como fallback
-    if (activeTrips.length > 0) {
-      for (const coord of coords.slice(0, 50)) {
-        try {
-          await api.insert('op_coordinates', {
-            id_unidad_viaje: activeTrips[0].id,
-            provider_id: provider.id,
-            latitud: coord.lat,
-            longitud: coord.lng,
-            velocidad: coord.speed || null,
-            rumbo: coord.heading || null,
-            fecha_gps: coord.timestamp || null,
-            fuente: coord.source || 'http',
-          });
-          savedCount++;
-        } catch (err) {
-          log('error', `Error guardando coord: ${err.message}`);
-        }
+    for (const coord of coords.slice(0, 50)) {
+      try {
+        await api.insert('op_coordinates', {
+          id_unidad_viaje: null,
+          provider_id: provider.id,
+          latitud: coord.lat,
+          longitud: coord.lng,
+          velocidad: coord.speed || null,
+          rumbo: coord.heading || null,
+          fecha_gps: coord.timestamp || null,
+          fuente: coord.source || 'http',
+        });
+        savedCount++;
+      } catch (err) {
+        log('error', `Error guardando coord sin viaje: ${err.message}`);
       }
     }
     return savedCount;
   }
 
-  // Para cada viaje del proveedor
-  for (const trip of providerTrips) {
-    const tripCoords = coords;
+  // Con viajes activos: matchear por proveedor
+  const providerTrips = activeTrips.filter(t =>
+    t.provider_id === provider.id || !t.provider_id
+  );
 
-    for (const coord of tripCoords.slice(0, 50)) {
+  // Si no hay viajes del proveedor, usar el primer viaje activo como fallback
+  const tripsToUse = providerTrips.length > 0 ? providerTrips : [activeTrips[0]];
+
+  if (providerTrips.length === 0) {
+    log('info', `No hay viajes del proveedor ${provider.nombre}, usando viaje fallback ID=${activeTrips[0].id}`);
+  }
+
+  for (const trip of tripsToUse) {
+    for (const coord of coords.slice(0, 50)) {
       try {
-        // Verificar que no sea duplicada (misma coord en ultimos 5 min)
         const isDuplicate = await _isCoordDuplicate(trip.id, coord);
         if (isDuplicate) continue;
 
-        // Insertar coordenada
         await api.insert('op_coordinates', {
           id_unidad_viaje: trip.id,
           provider_id: provider.id,
@@ -245,14 +251,12 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
         });
         savedCount++;
 
-        // Actualizar ultima posicion del viaje
         await api.update('unidades_viajes', trip.id, {
           ultima_lat: coord.lat,
           ultima_lng: coord.lng,
           ultima_actualizacion: new Date().toISOString().slice(0, 19).replace('T', ' '),
         }).catch(() => {});
 
-        // Registrar evento
         await _logEvent(trip.id, 'scrape_exitoso',
           `Coordenada extraida: ${coord.lat.toFixed(6)}, ${coord.lng.toFixed(6)} (${coord.source})`
         ).catch(() => {});
