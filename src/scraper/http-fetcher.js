@@ -112,7 +112,7 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
   const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
   const ajaxUrl = `${baseUrl}/ajax/DevicesAjax.asmx/GetTrackingForShareStatic`;
 
-  // 2. Primero GET la pagina para obtener cookies de sesion
+  // 2. GET la pagina para obtener cookies de sesion (si las hay)
   let cookies = '';
   try {
     const pageRes = await axios.get(shareUrl, {
@@ -122,7 +122,6 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
       validateStatus: () => true,
     });
 
-    // Capturar Set-Cookie headers
     const setCookies = pageRes.headers['set-cookie'];
     if (setCookies) {
       cookies = (Array.isArray(setCookies) ? setCookies : [setCookies])
@@ -132,14 +131,17 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
 
     log('info', `Micodus: pagina cargada (status ${pageRes.status}), cookies: ${cookies ? 'si' : 'no'}`);
   } catch (err) {
-    log('warn', `Micodus: no se pudo cargar pagina (${err.message}), intentando AJAX directo`);
+    log('warn', `Micodus: no se pudo cargar pagina (${err.message}), prosiguiendo con AJAX directo`);
   }
 
-  // 3. POST al endpoint AJAX con varias estrategias de body
+  // 3. POST al endpoint AJAX
+  //    Micodus usa el parametro "Key" (descubierto del JS de la pagina):
+  //    $.ajax({ url: "ajax/DevicesAjax.asmx/GetTrackingForShareStatic",
+  //             data: "{ Key: '" + access_token + "'}" })
   const bodies = [
-    { access_token: accessToken, s: '1' },
+    { Key: accessToken },
+    { key: accessToken },
     { access_token: accessToken },
-    {},
   ];
 
   let responseData = null;
