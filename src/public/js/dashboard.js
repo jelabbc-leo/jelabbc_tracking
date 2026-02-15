@@ -61,7 +61,7 @@ var DashboardModule = (function() {
           ultima_lat: v.ultima_lat ? parseFloat(v.ultima_lat).toFixed(5) : '—',
           ultima_lng: v.ultima_lng ? parseFloat(v.ultima_lng).toFixed(5) : '—',
           fecha_salida: v.fecha_salida || null,
-          ultima_actualizacion_gps: v.ultima_actualizacion_gps || null,
+          ultima_actualizacion: v.ultima_actualizacion || null,
           minutos_sin_update: v.minutos_sin_update != null ? parseInt(v.minutos_sin_update) : null,
         };
       });
@@ -113,7 +113,7 @@ var DashboardModule = (function() {
             format: { type: 'dateTime', format: 'dd/MM/yyyy HH:mm' },
           },
           {
-            field: 'ultima_actualizacion_gps',
+            field: 'ultima_actualizacion',
             headerText: 'Ult. GPS',
             width: 140,
             type: 'date',
@@ -304,7 +304,7 @@ var DashboardModule = (function() {
           ultima_lat: v.ultima_lat ? parseFloat(v.ultima_lat).toFixed(5) : '—',
           ultima_lng: v.ultima_lng ? parseFloat(v.ultima_lng).toFixed(5) : '—',
           fecha_salida: v.fecha_salida || null,
-          ultima_actualizacion_gps: v.ultima_actualizacion_gps || null,
+          ultima_actualizacion: v.ultima_actualizacion || null,
           minutos_sin_update: v.minutos_sin_update != null ? parseInt(v.minutos_sin_update) : null,
         };
       });

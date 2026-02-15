@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
       // 1. Viajes activos (con coordenadas)
       api.query(
         `SELECT uv.*, 
-                TIMESTAMPDIFF(MINUTE, uv.ultima_actualizacion_gps, NOW()) AS minutos_sin_update
+                TIMESTAMPDIFF(MINUTE, uv.ultima_actualizacion, NOW()) AS minutos_sin_update
          FROM unidades_viajes uv
          WHERE uv.estado_actual IN ('en_ruta','en_espera','cargando')
          ORDER BY uv.fecha_salida DESC
@@ -155,7 +155,7 @@ router.get('/api/refresh', async (req, res) => {
 
     const viajes = await api.query(
       `SELECT *,
-              TIMESTAMPDIFF(MINUTE, ultima_actualizacion_gps, NOW()) AS minutos_sin_update
+              TIMESTAMPDIFF(MINUTE, ultima_actualizacion, NOW()) AS minutos_sin_update
        FROM unidades_viajes
        WHERE estado_actual IN ('en_ruta','en_espera','cargando')
        ORDER BY fecha_salida DESC
