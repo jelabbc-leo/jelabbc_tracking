@@ -80,8 +80,8 @@ router.get('/api/list', async (req, res) => {
         `(uv.numero_economico LIKE '%${search}%'
           OR uv.origen LIKE '%${search}%'
           OR uv.destino LIKE '%${search}%'
-          OR uv.placas LIKE '%${search}%'
-          OR uv.contenedor LIKE '%${search}%'
+          OR uv.placas_unidad LIKE '%${search}%'
+          OR uv.numero_contenedor LIKE '%${search}%'
           OR CAST(uv.id AS CHAR) LIKE '%${search}%')`
       );
     }

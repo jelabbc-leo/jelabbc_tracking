@@ -92,15 +92,15 @@ var ViajesModule = (function() {
           field: 'numero_economico', headerText: 'Unidad', width: 130,
           template: function(data) {
             var unit = data.numero_economico || '—';
-            var placas = data.placas ? '<span class="text-xs text-gray-400 block mt-0.5">' + data.placas + '</span>' : '';
+            var placas = data.placas_unidad ? '<span class="text-xs text-gray-400 block mt-0.5">' + data.placas_unidad + '</span>' : '';
             return '<div><span class="font-semibold text-gray-900">' + unit + '</span>' + placas + '</div>';
           }
         },
         {
           field: 'contenedor', headerText: 'Contenedor', width: 140,
           template: function(data) {
-            if (!data.contenedor) return '<span class="text-gray-300">—</span>';
-            return '<span class="text-sm font-mono text-gray-700">' + data.contenedor + '</span>';
+            if (!data.numero_contenedor) return '<span class="text-gray-300">—</span>';
+            return '<span class="text-sm font-mono text-gray-700">' + data.numero_contenedor + '</span>';
           }
         },
         {

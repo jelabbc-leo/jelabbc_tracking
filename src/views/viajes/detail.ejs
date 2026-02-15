@@ -30,7 +30,7 @@
       <p class="text-sm text-gray-500 mt-1 ml-9">
         <% if (viaje.numero_economico) { %><strong><%= viaje.numero_economico %></strong> &mdash; <% } %>
         <%= viaje.origen || '—' %> &rarr; <%= viaje.destino || '—' %>
-        <% if (viaje.contenedor) { %> &bull; <span class="font-mono"><%= viaje.contenedor %></span><% } %>
+        <% if (viaje.numero_contenedor) { %> &bull; <span class="font-mono"><%= viaje.numero_contenedor %></span><% } %>
       </p>
     </div>
     <div class="flex items-center gap-2 ml-9 sm:ml-0">
@@ -111,16 +111,16 @@
             <dt class="text-gray-500">Unidad</dt>
             <dd class="font-semibold text-gray-900"><%= viaje.numero_economico || '—' %></dd>
           </div>
-          <% if (viaje.placas) { %>
+          <% if (viaje.placas_unidad) { %>
           <div class="flex justify-between items-center">
             <dt class="text-gray-500">Placas</dt>
-            <dd class="font-mono text-gray-700"><%= viaje.placas %></dd>
+            <dd class="font-mono text-gray-700"><%= viaje.placas_unidad %></dd>
           </div>
           <% } %>
-          <% if (viaje.contenedor) { %>
+          <% if (viaje.numero_contenedor) { %>
           <div class="flex justify-between items-center">
             <dt class="text-gray-500">Contenedor</dt>
-            <dd class="font-mono text-gray-700"><%= viaje.contenedor %></dd>
+            <dd class="font-mono text-gray-700"><%= viaje.numero_contenedor %></dd>
           </div>
           <% } %>
           <div class="border-t border-gray-100 pt-3">
