@@ -98,7 +98,10 @@ async function extractFromNetwork(page, options = {}) {
       }
 
       if (found.length > 0) {
-        log('info', `Red: ${found.length} coords en ${_truncateUrl(url)}`);
+        const urlPatterns = ['GetTrackingForShareStatic', 'positions', 'devices', 'locations'];
+        const matchedPattern = urlPatterns.find(p => url.indexOf(p) !== -1);
+        const patternLog = matchedPattern ? ` (URL pattern: ${matchedPattern})` : '';
+        log('info', `Red: ${found.length} coords en ${_truncateUrl(url)}${patternLog}`);
         for (const c of found) {
           c.source = 'network';
           c.sourceUrl = url;
@@ -286,7 +289,21 @@ async function extractFromGlobals(page, options = {}) {
       } catch { /* skip */ }
 
       // ---------------------------------------------------------------
-      // 3. Buscar variables globales con datos GPS
+      // 3a. Variables globales conocidas de plataformas GPS (Micodus, Wialon)
+      // ---------------------------------------------------------------
+      const knownGpsGlobals = ['uluru', 'd', 'devices', 'markers', 'units'];
+      for (const key of knownGpsGlobals) {
+        try {
+          if (window[key] === undefined || window[key] === null) continue;
+          const val = window[key];
+          if (typeof val !== 'object') continue;
+          checked.push(`window.${key} (known)`);
+          extract(val, 4, `window.${key}`);
+        } catch { /* skip */ }
+      }
+
+      // ---------------------------------------------------------------
+      // 3b. Buscar variables globales con datos GPS (por patron de nombre)
       // ---------------------------------------------------------------
       const gpsVarPatterns = [
         /vehicle/i, /unit/i, /device/i, /track/i, /marker/i,
@@ -444,7 +461,38 @@ async function extractFromDOM(page, options = {}) {
         }
       }
 
-      return { texts, scanned };
+      // ---------------------------------------------------------------
+      // 7. Links de Google Maps (maps.google.com/maps?q=LAT,LNG) - GPSWox, etc.
+      // ---------------------------------------------------------------
+      const mapLinkCoords = [];
+      const qPattern = /[?&]q=(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/;
+      const collectFromHref = (href) => {
+        if (!href || typeof href !== 'string') return;
+        const m = href.match(qPattern);
+        if (!m) return;
+        const lat = parseFloat(m[1]);
+        const lng = parseFloat(m[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (Math.abs(lat) > 0.01 || Math.abs(lng) > 0.01)) {
+          mapLinkCoords.push({ lat, lng });
+        }
+      };
+
+      const mapLinkSelectors = [
+        'a[href*="maps.google.com"], a[href*="google.com/maps"]',
+        'iframe[src*="maps.google.com"], iframe[src*="google.com/maps"]',
+      ];
+      for (const sel of mapLinkSelectors) {
+        try {
+          const els = document.querySelectorAll(sel);
+          for (const el of els) {
+            scanned++;
+            const href = el.getAttribute('href') || el.getAttribute('src') || '';
+            collectFromHref(href);
+          }
+        } catch { /* skip */ }
+      }
+
+      return { texts, scanned, mapLinkCoords };
     });
   } catch (err) {
     log('error', 'Error escaneando DOM:', err.message);
@@ -455,6 +503,13 @@ async function extractFromDOM(page, options = {}) {
   const coords = coordDetector.detectFromMultipleSources(result.texts);
   for (const c of coords) {
     c.source = 'dom';
+  }
+  // Agregar coordenadas de links Google Maps (q=LAT,LNG)
+  if (result.mapLinkCoords && result.mapLinkCoords.length > 0) {
+    for (const c of result.mapLinkCoords) {
+      c.source = 'dom';
+      coords.push(c);
+    }
   }
 
   log('info', `DOM: ${result.scanned} elementos escaneados, ${coords.length} coords encontradas`);
