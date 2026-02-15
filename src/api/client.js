@@ -220,30 +220,37 @@ class ApiClient {
 
   /**
    * Ejecuta un SELECT SQL via el endpoint CRUD generico.
+   * Transforma automaticamente el formato {Campos: {field: {Valor, Tipo}}}
+   * a formato plano {field: value} para uso facil en el resto del codigo.
    * @param {string} sql - Query SELECT completa
-   * @returns {Promise<Array<object>>} Filas resultantes
+   * @returns {Promise<Array<object>>} Filas resultantes (formato plano)
    */
   async query(sql) {
-    return this._request({
+    const raw = await this._request({
       method: 'GET',
       url: '/api/crud',
       params: { strQuery: sql },
       timeout: DEFAULT_TIMEOUT,
       operation: 'query',
     });
+
+    // Transformar respuesta de formato API .NET a formato plano
+    return _flattenRows(raw);
   }
 
   /**
    * Inserta un registro en la tabla indicada.
+   * Convierte automaticamente {field: value} al formato API .NET
+   * {campos: {field: {valor: value, tipo: "auto"}}}.
    * @param {string} tabla - Nombre de la tabla (con prefijo cat_, conf_, op_, log_, vw_)
-   * @param {object} data - Datos del registro a insertar
+   * @param {object} data - Datos del registro a insertar (formato plano)
    * @returns {Promise<object>} Respuesta de la API
    */
   async insert(tabla, data) {
     return this._request({
       method: 'POST',
       url: `/api/crud/${tabla}`,
-      data,
+      data: _toCrudRequest(data),
       timeout: MUTATION_TIMEOUT,
       operation: 'insert',
     });
@@ -268,7 +275,7 @@ class ApiClient {
         const res = await this._requestWithoutEnsure({
           method: 'POST',
           url: `/api/crud/${tabla}`,
-          data: record,
+          data: _toCrudRequest(record),
           timeout: MUTATION_TIMEOUT,
           operation: 'insertMany',
         });
@@ -283,16 +290,17 @@ class ApiClient {
 
   /**
    * Actualiza un registro existente.
+   * Convierte datos planos al formato API .NET automaticamente.
    * @param {string} tabla - Nombre de la tabla
    * @param {number|string} id - ID del registro
-   * @param {object} data - Campos a actualizar
+   * @param {object} data - Campos a actualizar (formato plano)
    * @returns {Promise<object>} Respuesta de la API
    */
   async update(tabla, id, data) {
     return this._request({
       method: 'PUT',
       url: `/api/crud/${tabla}/${id}`,
-      data,
+      data: _toCrudRequest(data),
       timeout: MUTATION_TIMEOUT,
       operation: 'update',
     });
@@ -478,6 +486,85 @@ class ApiClient {
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
     fn(LOG_PREFIX, ...args);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Transformadores de formato API .NET ↔ formato plano
+// ---------------------------------------------------------------------------
+
+/**
+ * Transforma un array de filas del formato API .NET:
+ *   [{Campos: {field: {Valor: x, Tipo: y}}}]
+ * Al formato plano que usa todo el codigo:
+ *   [{field: x}]
+ *
+ * Si los datos ya estan en formato plano, los retorna sin cambios.
+ * @param {Array} rows
+ * @returns {Array<object>}
+ */
+function _flattenRows(rows) {
+  if (!Array.isArray(rows)) return rows;
+  if (rows.length === 0) return rows;
+
+  // Verificar si la primera fila tiene el wrapper "Campos"
+  const first = rows[0];
+  if (!first || !first.Campos) {
+    // Ya esta en formato plano
+    return rows;
+  }
+
+  return rows.map(row => {
+    if (!row.Campos) return row;
+
+    const flat = {};
+    for (const [key, campo] of Object.entries(row.Campos)) {
+      flat[key] = campo && typeof campo === 'object' && 'Valor' in campo
+        ? campo.Valor
+        : campo;
+    }
+    return flat;
+  });
+}
+
+/**
+ * Convierte un objeto plano {field: value} al formato CrudRequest de la API .NET:
+ *   {campos: {field: {valor: value, tipo: "auto"}}}
+ *
+ * Detecta automaticamente el tipo .NET basado en el tipo JS del valor.
+ * @param {object} data - Datos planos
+ * @returns {object} CrudRequest
+ */
+function _toCrudRequest(data) {
+  if (!data || typeof data !== 'object') return data;
+
+  // Si ya tiene el formato {campos: ...}, retornar sin cambios
+  if (data.campos && typeof data.campos === 'object') return data;
+
+  const campos = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue;
+
+    let tipo = 'System.String';
+    let valor = value;
+
+    if (value === null) {
+      tipo = 'System.String';
+      valor = null;
+    } else if (typeof value === 'boolean') {
+      tipo = 'System.Boolean';
+      valor = value;
+    } else if (typeof value === 'number') {
+      tipo = Number.isInteger(value) ? 'System.Int64' : 'System.Decimal';
+      valor = value;
+    } else {
+      tipo = 'System.String';
+      valor = String(value);
+    }
+
+    campos[key] = { valor, tipo };
+  }
+
+  return { campos };
 }
 
 // ---------------------------------------------------------------------------

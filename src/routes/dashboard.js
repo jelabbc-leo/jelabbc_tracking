@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
     const api = createClient(req.session.token);
 
     // Ejecutar todas las consultas en paralelo
-    const [viajes, providers, recentEvents, scrapeStats, todayCompleted] = await Promise.allSettled([
+    const [viajes, providers, recentEvents, scrapeStats, todayCompleted, aiStats] = await Promise.allSettled([
       // 1. Viajes activos (con coordenadas)
       api.query(
         `SELECT uv.*, 
@@ -64,6 +64,15 @@ router.get('/', async (req, res) => {
          WHERE estado_actual = 'completado'
            AND DATE(fecha_llegada) = CURDATE()`
       ),
+
+      // 6. Estadisticas IA (Fase 3)
+      api.query(
+        `SELECT
+           (SELECT COUNT(*) FROM unidades_viajes WHERE ia_llamadas_activas = 1 AND estado_actual = 'en_ruta') AS viajes_ia,
+           (SELECT COUNT(*) FROM log_ai_calls WHERE DATE(creado_en) = CURDATE()) AS llamadas_hoy,
+           (SELECT COUNT(*) FROM log_ai_calls WHERE DATE(creado_en) = CURDATE() AND resultado = 'atendida') AS atendidas_hoy,
+           (SELECT COUNT(*) FROM log_ai_calls WHERE DATE(creado_en) = CURDATE() AND tipo = 'paro') AS paros_hoy`
+      ),
     ]);
 
     // Extraer resultados (con fallback seguro si alguna consulta falla)
@@ -81,6 +90,9 @@ router.get('/', async (req, res) => {
 
     const completadosHoy = todayCompleted.status === 'fulfilled' && Array.isArray(todayCompleted.value) && todayCompleted.value[0]
       ? parseInt(todayCompleted.value[0].total) || 0 : 0;
+
+    const aiData = aiStats.status === 'fulfilled' && Array.isArray(aiStats.value) && aiStats.value[0]
+      ? aiStats.value[0] : { viajes_ia: 0, llamadas_hoy: 0, atendidas_hoy: 0, paros_hoy: 0 };
 
     // Calcular estadisticas
     const enRuta = viajesData.filter(v => v.estado_actual === 'en_ruta').length;
@@ -111,6 +123,12 @@ router.get('/', async (req, res) => {
       events: eventsData,
       scrapeStats: scrapeData,
       alertaViajes: alertas,
+      aiStats: {
+        viajesIA: parseInt(aiData.viajes_ia) || 0,
+        llamadasHoy: parseInt(aiData.llamadas_hoy) || 0,
+        atendidasHoy: parseInt(aiData.atendidas_hoy) || 0,
+        parosHoy: parseInt(aiData.paros_hoy) || 0,
+      },
     });
   } catch (err) {
     console.error('[Dashboard] Error:', err.message);
@@ -125,6 +143,7 @@ router.get('/', async (req, res) => {
       events: [],
       scrapeStats: { total_scrapes: 0, exitosos: 0, errores: 0, total_coords: 0, ultimo_scrape: null },
       alertaViajes: [],
+      aiStats: { viajesIA: 0, llamadasHoy: 0, atendidasHoy: 0, parosHoy: 0 },
     });
   }
 });

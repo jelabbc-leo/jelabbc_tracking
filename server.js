@@ -9,9 +9,28 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const path = require('path');
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// ---------------------------------------------------------------------------
+// Scraper & Scheduler — requires y estado
+// ---------------------------------------------------------------------------
+const coordinator = require('./src/scraper/coordinator');
+const browserManager = require('./src/scraper/browser');
+const stopDetector = require('./src/ai/stop-detector');
+const vapiTrigger = require('./src/ai/vapi-trigger');
+
+const CRON_EXPRESSION = process.env.CRON_SCHEDULE || '*/1 * * * *';
+let schedulerEnabled = (process.env.SCHEDULER_ENABLED || 'true') !== 'false';
+let schedulerRunning = false;
+
+// AI Detection state
+let aiDetectionEnabled = (process.env.AI_DETECTION_ENABLED || 'true') !== 'false';
+let lastDetectionTime = null;
+let lastDetectionResult = null;
+const AI_DETECTION_INTERVAL_MS = (parseInt(process.env.AI_DETECTION_INTERVAL_MIN) || 5) * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Trust proxy (Azure App Service corre detras de un reverse proxy)
@@ -69,7 +88,7 @@ function requireAuth(req, res, next) {
 }
 
 // ---------------------------------------------------------------------------
-// Routes
+// Routes — vistas
 // ---------------------------------------------------------------------------
 const authRoutes = require('./src/routes/auth');
 const dashboardRoutes = require('./src/routes/dashboard');
@@ -98,6 +117,67 @@ app.get('/', (req, res) => {
     return res.redirect('/dashboard');
   }
   return res.redirect('/login');
+});
+
+// ---------------------------------------------------------------------------
+// Scraper API — antes del error/404 handler
+// ---------------------------------------------------------------------------
+
+// Status del scraper (para la vista de logs)
+app.get('/api/scraper/status', requireAuth, (req, res) => {
+  res.json(coordinator.status());
+});
+
+// Ejecutar scraping manual
+app.post('/api/scraper/run', requireAuth, async (req, res) => {
+  try {
+    const { providerId } = req.body;
+    let result;
+    if (providerId) {
+      result = await coordinator.runForProvider(providerId);
+    } else {
+      result = await coordinator.run();
+    }
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Scheduler API — status y control en runtime
+// ---------------------------------------------------------------------------
+
+app.get('/api/scheduler/status', requireAuth, (req, res) => {
+  res.json({
+    enabled: schedulerEnabled,
+    running: schedulerRunning,
+    cron: CRON_EXPRESSION,
+  });
+});
+
+app.post('/api/scheduler/toggle', requireAuth, (req, res) => {
+  schedulerEnabled = !schedulerEnabled;
+  console.log(`[Scheduler] ${schedulerEnabled ? 'Habilitado' : 'Deshabilitado'} por usuario`);
+  res.json({ enabled: schedulerEnabled });
+});
+
+// ---------------------------------------------------------------------------
+// AI Stop Detection API — status y ejecucion manual
+// ---------------------------------------------------------------------------
+
+app.get('/api/ai/status', requireAuth, (req, res) => {
+  res.json({
+    detectionEnabled: aiDetectionEnabled,
+    lastDetectionTime: lastDetectionTime ? lastDetectionTime.toISOString() : null,
+    lastDetectionResult: lastDetectionResult,
+  });
+});
+
+app.post('/api/ai/toggle-detection', requireAuth, (req, res) => {
+  aiDetectionEnabled = !aiDetectionEnabled;
+  console.log(`[AI] Deteccion de paros ${aiDetectionEnabled ? 'habilitada' : 'deshabilitada'} por usuario`);
+  res.json({ enabled: aiDetectionEnabled });
 });
 
 // ---------------------------------------------------------------------------
@@ -130,10 +210,101 @@ app.listen(PORT, () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scheduler (node-cron) - Se activara en Fase 2
+// Scheduler (node-cron) - Fase 2
+// Ejecuta cada minuto; el coordinator decide que proveedores estan "due"
+// segun su intervalo_minutos individual (conf_providers.intervalo_minutos).
+//
+// Ejemplo: proveedor A con intervalo_minutos=5 solo se scrapeara si
+// su ultimo_scrape fue hace 5+ minutos.
 // ---------------------------------------------------------------------------
-// const cron = require('node-cron');
-// const coordinator = require('./src/scraper/coordinator');
-// cron.schedule('*/5 * * * *', () => coordinator.run());
+
+let _lastQuietLog = 0;
+
+const schedulerTask = cron.schedule(CRON_EXPRESSION, async () => {
+  if (!schedulerEnabled) return;
+  if (schedulerRunning) return; // Evitar overlap
+
+  schedulerRunning = true;
+  try {
+    const result = await coordinator.runDueProviders();
+
+    if (result.skipped) {
+      // Skip por already_running — silencioso
+    } else if (
+      result.providersSkipped === result.providers &&
+      result.providersSuccess === 0 &&
+      result.providersFailed === 0
+    ) {
+      // Todos saltados (ninguno due): loguear solo cada 10 minutos
+      const now = Date.now();
+      if (now - _lastQuietLog > 600000) {
+        console.log(`[Scheduler] Tick: ${result.providers} proveedores activos, ninguno necesita scraping aun`);
+        _lastQuietLog = now;
+      }
+    } else {
+      const processed = result.providers - result.providersSkipped;
+      console.log(
+        `[Scheduler] Ciclo completado: ${result.providersSuccess}/${processed} OK, ` +
+        `${result.totalNewCoords} coords nuevas en ${(result.durationMs / 1000).toFixed(1)}s`
+      );
+    }
+
+    // --- Fase 3: Deteccion de paros IA ---
+    // Se ejecuta despues del scraping, respetando su propio intervalo
+    if (aiDetectionEnabled) {
+      const shouldRunDetection = !lastDetectionTime ||
+        (Date.now() - lastDetectionTime.getTime()) >= AI_DETECTION_INTERVAL_MS;
+
+      if (shouldRunDetection) {
+        try {
+          const stops = await stopDetector.detectStops();
+          lastDetectionTime = new Date();
+
+          if (stops.length > 0) {
+            console.log(`[AI] ${stops.length} paros detectados, iniciando protocolo de llamadas...`);
+            const callResult = await vapiTrigger.processStopAlerts(stops);
+            lastDetectionResult = {
+              time: lastDetectionTime.toISOString(),
+              stops: stops.length,
+              calls: callResult.calls,
+              answered: callResult.callsAnswered,
+            };
+            console.log(`[AI] Resultado: ${callResult.calls} llamadas (${callResult.callsAnswered} atendidas)`);
+          } else {
+            lastDetectionResult = {
+              time: lastDetectionTime.toISOString(),
+              stops: 0,
+              calls: 0,
+              answered: 0,
+            };
+          }
+        } catch (aiErr) {
+          console.error('[AI] Error en deteccion de paros:', aiErr.message);
+          lastDetectionResult = { time: new Date().toISOString(), error: aiErr.message };
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Scheduler] Error en ciclo:', err.message);
+  } finally {
+    schedulerRunning = false;
+  }
+});
+
+console.log(`[Scheduler] Cron programado: ${CRON_EXPRESSION} (habilitado: ${schedulerEnabled})`);
+console.log(`[AI] Deteccion de paros: ${aiDetectionEnabled ? 'habilitada' : 'deshabilitada'} (intervalo: ${AI_DETECTION_INTERVAL_MS / 60000} min)`);
+
+// ---------------------------------------------------------------------------
+// Limpieza al cerrar (cerrar pool de browsers y detener cron)
+// ---------------------------------------------------------------------------
+async function gracefulShutdown(signal) {
+  console.log(`[Cleanup] ${signal} recibido, cerrando...`);
+  schedulerTask.stop();
+  await browserManager.closeAll();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = app;

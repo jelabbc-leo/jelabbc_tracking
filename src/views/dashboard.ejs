@@ -385,6 +385,37 @@
         </div>
         <% } %>
       </div>
+
+      <!-- Resumen IA (mini-card) -->
+      <div class="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-sm border border-purple-200 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5m-4.25-11.396c.251.023.501.05.75.082M12 3v5.714"/>
+            </svg>
+            IA Hoy
+          </h3>
+          <a href="/ai" class="text-xs text-purple-600 hover:text-purple-800 font-medium">Config</a>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <p class="text-lg font-bold text-purple-700 tabular-nums"><%= aiStats.viajesIA %></p>
+            <p class="text-xs text-gray-400">Viajes con IA</p>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-purple-600 tabular-nums"><%= aiStats.llamadasHoy %></p>
+            <p class="text-xs text-gray-400">Llamadas</p>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-emerald-600 tabular-nums"><%= aiStats.atendidasHoy %></p>
+            <p class="text-xs text-gray-400">Atendidas</p>
+          </div>
+          <div>
+            <p class="text-lg font-bold <%= aiStats.parosHoy > 0 ? 'text-red-600' : 'text-gray-400' %> tabular-nums"><%= aiStats.parosHoy %></p>
+            <p class="text-xs text-gray-400">Paros</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

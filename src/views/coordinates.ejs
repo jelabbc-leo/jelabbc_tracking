@@ -3,19 +3,341 @@
 
 <main class="p-4 sm:p-6 lg:p-8">
   <!-- Header -->
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Coordenadas</h1>
-    <p class="text-sm text-gray-500 mt-1">Historial de coordenadas GPS extraidas</p>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Coordenadas</h1>
+      <p class="text-sm text-gray-500 mt-1">Historial de coordenadas GPS extraidas por el scraper</p>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- Boton exportar CSV -->
+      <button id="btn-export" onclick="exportCSV()"
+              class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Exportar CSV
+      </button>
+    </div>
   </div>
 
-  <!-- Syncfusion Grid -->
+  <!-- Tarjetas de estadisticas -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Total historico</p>
+      <p id="stat-total" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Hoy</p>
+      <p id="stat-hoy" class="text-2xl font-bold text-blue-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Viajes hoy</p>
+      <p id="stat-viajes" class="text-2xl font-bold text-purple-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Proveedores hoy</p>
+      <p id="stat-providers" class="text-2xl font-bold text-emerald-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Vel. promedio hoy</p>
+      <p id="stat-vel" class="text-2xl font-bold text-amber-600 mt-1">-</p>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Viaje</label>
+        <select id="filter-viaje" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Todos los viajes</option>
+          <% (viajes || []).forEach(function(v) { %>
+            <option value="<%= v.id %>">#<%= v.id %> <%= v.id_unidad ? '(' + v.id_unidad + ')' : '' %> - <%= v.origen %> → <%= v.destino %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Proveedor</label>
+        <select id="filter-provider" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Todos los proveedores</option>
+          <% (providers || []).forEach(function(p) { %>
+            <option value="<%= p.id %>"><%= p.nombre %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Desde</label>
+        <input type="date" id="filter-fecha-desde" onchange="applyFilters()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Hasta</label>
+        <input type="date" id="filter-fecha-hasta" onchange="applyFilters()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div class="flex-shrink-0">
+        <button onclick="clearFilters()"
+                class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Limpiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid de coordenadas -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div id="coordinates-grid"></div>
+    <div id="coordsGrid"></div>
   </div>
 </main>
 
-<script>
-  var coordsData = <%- JSON.stringify(coordenadas) %>;
-</script>
-
 <%- include('partials/foot') %>
+
+<script>
+(function() {
+  // ===========================================================================
+  // Filtros
+  // ===========================================================================
+
+  var currentFilters = {};
+
+  function buildGridUrl() {
+    var base = '/coordinates/api/list';
+    var params = [];
+    if (currentFilters.viajeId) params.push('viajeId=' + currentFilters.viajeId);
+    if (currentFilters.providerId) params.push('providerId=' + currentFilters.providerId);
+    if (currentFilters.fechaDesde) params.push('fechaDesde=' + currentFilters.fechaDesde);
+    if (currentFilters.fechaHasta) params.push('fechaHasta=' + currentFilters.fechaHasta);
+    return base + (params.length ? '?' + params.join('&') : '');
+  }
+
+  window.applyFilters = function() {
+    currentFilters = {
+      viajeId: document.getElementById('filter-viaje').value,
+      providerId: document.getElementById('filter-provider').value,
+      fechaDesde: document.getElementById('filter-fecha-desde').value,
+      fechaHasta: document.getElementById('filter-fecha-hasta').value,
+    };
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  window.clearFilters = function() {
+    document.getElementById('filter-viaje').value = '';
+    document.getElementById('filter-provider').value = '';
+    document.getElementById('filter-fecha-desde').value = '';
+    document.getElementById('filter-fecha-hasta').value = '';
+    currentFilters = {};
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  // ===========================================================================
+  // Export CSV
+  // ===========================================================================
+
+  window.exportCSV = function() {
+    var params = [];
+    if (currentFilters.viajeId) params.push('viajeId=' + currentFilters.viajeId);
+    if (currentFilters.providerId) params.push('providerId=' + currentFilters.providerId);
+    if (currentFilters.fechaDesde) params.push('fechaDesde=' + currentFilters.fechaDesde);
+    if (currentFilters.fechaHasta) params.push('fechaHasta=' + currentFilters.fechaHasta);
+    var url = '/coordinates/api/export' + (params.length ? '?' + params.join('&') : '');
+    window.location.href = url;
+  };
+
+  // ===========================================================================
+  // Templates
+  // ===========================================================================
+
+  function coordTemplate(field) {
+    return function(props) {
+      var val = props[field];
+      if (!val && val !== 0) return '<span class="text-gray-300">-</span>';
+      return '<span class="font-mono text-sm tabular-nums text-gray-700">' + parseFloat(val).toFixed(6) + '</span>';
+    };
+  }
+
+  function velTemplate(props) {
+    var vel = props.velocidad;
+    if (vel === null || vel === undefined) return '<span class="text-gray-300">-</span>';
+    vel = parseFloat(vel);
+    var color = vel === 0 ? 'text-red-500' : vel < 30 ? 'text-amber-600' : 'text-green-600';
+    return '<span class="text-sm font-medium tabular-nums ' + color + '">' + vel.toFixed(0) + ' km/h</span>';
+  }
+
+  function fuenteTemplate(props) {
+    if (!props.fuente) return '<span class="text-gray-300">-</span>';
+    var colors = {
+      network: 'bg-blue-100 text-blue-700',
+      globals: 'bg-purple-100 text-purple-700',
+      dom: 'bg-amber-100 text-amber-700',
+      scraper: 'bg-green-100 text-green-700',
+      manual: 'bg-gray-100 text-gray-600',
+    };
+    var cls = colors[props.fuente] || 'bg-gray-100 text-gray-600';
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + cls + '">' + props.fuente + '</span>';
+  }
+
+  function fechaTemplate(field) {
+    return function(props) {
+      var val = props[field];
+      if (!val) return '<span class="text-gray-300">-</span>';
+      var d = new Date(val);
+      return '<span class="text-xs tabular-nums" title="' + d.toISOString() + '">' +
+        d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' ' +
+        d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+        '</span>';
+    };
+  }
+
+  function viajeTemplate(props) {
+    if (!props.id_unidad_viaje) return '<span class="text-gray-300">-</span>';
+    var label = '#' + props.id_unidad_viaje;
+    if (props.viaje_unidad) label += ' (' + props.viaje_unidad + ')';
+    return '<a href="/viajes/' + props.id_unidad_viaje + '" class="text-blue-600 hover:text-blue-800 text-xs font-medium hover:underline">' + label + '</a>';
+  }
+
+  // ===========================================================================
+  // Syncfusion Grid
+  // ===========================================================================
+
+  var grid = new ej.grids.Grid({
+    dataSource: new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    }),
+    allowPaging: true,
+    allowSorting: true,
+    allowResizing: true,
+    pageSettings: { pageSize: 25, pageSizes: [10, 25, 50, 100] },
+    gridLines: 'Horizontal',
+    rowHeight: 44,
+    enableHover: true,
+    columns: [
+      { field: 'id', headerText: 'ID', width: 70, textAlign: 'Right', isPrimaryKey: true },
+      {
+        field: 'id_unidad_viaje',
+        headerText: 'Viaje',
+        width: 130,
+        template: function(props) { return viajeTemplate(props); },
+      },
+      {
+        field: 'latitud',
+        headerText: 'Latitud',
+        width: 130,
+        textAlign: 'Right',
+        template: coordTemplate('latitud'),
+      },
+      {
+        field: 'longitud',
+        headerText: 'Longitud',
+        width: 130,
+        textAlign: 'Right',
+        template: coordTemplate('longitud'),
+      },
+      {
+        field: 'velocidad',
+        headerText: 'Velocidad',
+        width: 100,
+        textAlign: 'Center',
+        template: function(props) { return velTemplate(props); },
+      },
+      {
+        field: 'rumbo',
+        headerText: 'Rumbo',
+        width: 75,
+        textAlign: 'Center',
+        template: function(props) {
+          if (!props.rumbo && props.rumbo !== 0) return '<span class="text-gray-300">-</span>';
+          return '<span class="text-sm tabular-nums text-gray-600">' + parseFloat(props.rumbo).toFixed(0) + '°</span>';
+        },
+      },
+      {
+        field: 'fuente',
+        headerText: 'Fuente',
+        width: 100,
+        textAlign: 'Center',
+        template: function(props) { return fuenteTemplate(props); },
+      },
+      {
+        field: 'provider_nombre',
+        headerText: 'Proveedor',
+        width: 130,
+        clipMode: 'EllipsisWithTooltip',
+        template: function(props) {
+          return props.provider_nombre
+            ? '<span class="text-sm text-gray-600">' + props.provider_nombre + '</span>'
+            : '<span class="text-gray-300">-</span>';
+        },
+      },
+      {
+        field: 'fecha_gps',
+        headerText: 'Fecha GPS',
+        width: 150,
+        template: fechaTemplate('fecha_gps'),
+      },
+      {
+        field: 'fecha_extraccion',
+        headerText: 'Extraccion',
+        width: 150,
+        template: fechaTemplate('fecha_extraccion'),
+      },
+    ],
+  });
+
+  grid.appendTo('#coordsGrid');
+
+  // ===========================================================================
+  // Stats
+  // ===========================================================================
+
+  function loadStats() {
+    fetch('/coordinates/api/stats')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('stat-total').textContent = data.total.toLocaleString('es-MX');
+        document.getElementById('stat-hoy').textContent = data.hoy.toLocaleString('es-MX');
+        document.getElementById('stat-viajes').textContent = data.viajesHoy;
+        document.getElementById('stat-providers').textContent = data.providersHoy;
+        document.getElementById('stat-vel').textContent = data.velPromedio ? data.velPromedio + ' km/h' : '-';
+      })
+      .catch(function() {});
+  }
+
+  loadStats();
+
+  // ===========================================================================
+  // Toast
+  // ===========================================================================
+
+  window.showToast = window.showToast || function(message, type) {
+    var colors = { success: 'bg-emerald-600', error: 'bg-red-600', info: 'bg-blue-600' };
+    var toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg transition-all duration-300 ' + (colors[type] || colors.info);
+    toast.textContent = message;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    document.body.appendChild(toast);
+    requestAnimationFrame(function() {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+    }, 4000);
+  };
+})();
+</script>

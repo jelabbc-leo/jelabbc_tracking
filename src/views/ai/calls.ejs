@@ -2,18 +2,545 @@
 <%- include('../partials/navbar') %>
 
 <main class="p-4 sm:p-6 lg:p-8">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Llamadas IA</h1>
-    <p class="text-sm text-gray-500 mt-1">Historial de llamadas realizadas por inteligencia artificial</p>
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Llamadas IA</h1>
+      <p class="text-sm text-gray-500 mt-1">Historial de llamadas realizadas por inteligencia artificial</p>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- Enlace a configuracion -->
+      <a href="/ai"
+         class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Configuracion
+      </a>
+    </div>
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-    <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-    </svg>
-    <h3 class="text-lg font-medium text-gray-500">Proximamente</h3>
-    <p class="text-sm text-gray-400 mt-1">Esta seccion se implementara en la Fase 3</p>
+  <!-- Tarjetas de estadisticas -->
+  <div id="stats-section" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Llamadas hoy</p>
+      <p id="stat-today" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Tasa respuesta</p>
+      <p id="stat-answer-rate" class="text-2xl font-bold text-emerald-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Atendidas</p>
+      <p id="stat-answered" class="text-2xl font-bold text-emerald-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">No atendidas</p>
+      <p id="stat-unanswered" class="text-2xl font-bold text-amber-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Duracion prom.</p>
+      <p id="stat-avg-duration" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Viajes con IA</p>
+      <p id="stat-ia-trips" class="text-2xl font-bold text-purple-600 mt-1">-</p>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Viaje</label>
+        <select id="filter-trip" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          <option value="">Todos los viajes</option>
+          <% (viajes || []).forEach(function(v) { %>
+            <option value="<%= v.id %>">#<%= v.id %> - <%= v.origen %> → <%= v.destino %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+        <select id="filter-tipo" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          <option value="">Todos</option>
+          <option value="paro">Paro</option>
+          <option value="accidente">Accidente</option>
+          <option value="verificacion">Verificacion</option>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Resultado</label>
+        <select id="filter-resultado" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          <option value="">Todos</option>
+          <option value="atendida">Atendida</option>
+          <option value="no_atendida">No atendida</option>
+          <option value="buzon">Buzon</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Desde</label>
+        <input type="date" id="filter-fecha-desde" onchange="applyFilters()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Hasta</label>
+        <input type="date" id="filter-fecha-hasta" onchange="applyFilters()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <div class="flex-shrink-0">
+        <button onclick="clearFilters()"
+                class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Limpiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid de llamadas -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div id="callsGrid"></div>
+  </div>
+
+  <!-- Dialog detalle de llamada -->
+  <div id="callDetailDialog" style="display:none;">
+    <div id="callDetailContent" class="p-4">
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">ID</label>
+            <p id="detail-id" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Viaje</label>
+            <p id="detail-viaje" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Tipo</label>
+            <p id="detail-tipo" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Resultado</label>
+            <p id="detail-resultado" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Telefono</label>
+            <p id="detail-telefono" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Destinatario</label>
+            <p id="detail-destinatario" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Duracion</label>
+            <p id="detail-duracion" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Fecha</label>
+            <p id="detail-fecha" class="font-medium">-</p>
+          </div>
+          <div class="col-span-2">
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Ubicacion al llamar</label>
+            <p id="detail-ubicacion" class="font-medium">-</p>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wider">Motivo</label>
+          <p id="detail-motivo" class="text-sm text-gray-700 mt-1 bg-gray-50 p-3 rounded-lg">-</p>
+        </div>
+        <div id="detail-resumen-section">
+          <label class="text-xs text-gray-500 uppercase tracking-wider">Resumen de conversacion</label>
+          <p id="detail-resumen" class="text-sm text-gray-700 mt-1 bg-purple-50 p-3 rounded-lg">-</p>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 
 <%- include('../partials/foot') %>
+
+<script>
+(function() {
+  // ===========================================================================
+  // Filtros
+  // ===========================================================================
+
+  var currentFilters = {};
+
+  function buildGridUrl() {
+    var base = '/ai/api/calls';
+    var params = [];
+    if (currentFilters.tripId) params.push('tripId=' + currentFilters.tripId);
+    if (currentFilters.tipo) params.push('tipo=' + currentFilters.tipo);
+    if (currentFilters.resultado) params.push('resultado=' + currentFilters.resultado);
+    if (currentFilters.fechaDesde) params.push('fechaDesde=' + currentFilters.fechaDesde);
+    if (currentFilters.fechaHasta) params.push('fechaHasta=' + currentFilters.fechaHasta);
+    return base + (params.length ? '?' + params.join('&') : '');
+  }
+
+  window.applyFilters = function() {
+    currentFilters = {
+      tripId: document.getElementById('filter-trip').value,
+      tipo: document.getElementById('filter-tipo').value,
+      resultado: document.getElementById('filter-resultado').value,
+      fechaDesde: document.getElementById('filter-fecha-desde').value,
+      fechaHasta: document.getElementById('filter-fecha-hasta').value,
+    };
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  window.clearFilters = function() {
+    document.getElementById('filter-trip').value = '';
+    document.getElementById('filter-tipo').value = '';
+    document.getElementById('filter-resultado').value = '';
+    document.getElementById('filter-fecha-desde').value = '';
+    document.getElementById('filter-fecha-hasta').value = '';
+    currentFilters = {};
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  // ===========================================================================
+  // Templates
+  // ===========================================================================
+
+  function tipoTemplate(props) {
+    var tipo = props.tipo || 'desconocido';
+    var colors = {
+      paro: 'bg-red-100 text-red-800',
+      accidente: 'bg-orange-100 text-orange-800',
+      verificacion: 'bg-blue-100 text-blue-800',
+    };
+    var icons = {
+      paro: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>',
+      accidente: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>',
+      verificacion: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    };
+    var labels = { paro: 'Paro', accidente: 'Accidente', verificacion: 'Verificacion' };
+    var colorClass = colors[tipo] || 'bg-gray-100 text-gray-800';
+    var icon = icons[tipo] || '';
+    return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + colorClass + '">' + icon + (labels[tipo] || tipo) + '</span>';
+  }
+
+  function resultadoTemplate(props) {
+    var resultado = props.resultado || 'desconocido';
+    var colors = {
+      atendida: 'bg-emerald-100 text-emerald-800',
+      no_atendida: 'bg-amber-100 text-amber-800',
+      buzon: 'bg-blue-100 text-blue-800',
+      error: 'bg-red-100 text-red-800',
+    };
+    var icons = {
+      atendida: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+      no_atendida: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>',
+      buzon: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>',
+      error: '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+    };
+    var labels = { atendida: 'Atendida', no_atendida: 'No atendida', buzon: 'Buzon', error: 'Error' };
+    var colorClass = colors[resultado] || 'bg-gray-100 text-gray-800';
+    var icon = icons[resultado] || '';
+    return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + colorClass + '">' + icon + (labels[resultado] || resultado) + '</span>';
+  }
+
+  function rolTemplate(props) {
+    var rol = props.destinatario_rol || 'desconocido';
+    var labels = {
+      operador: 'Operador',
+      coordinador1: 'Coordinador 1',
+      coordinador2: 'Coordinador 2',
+      coordinador3: 'Coordinador 3',
+      cliente: 'Cliente',
+    };
+    var colors = {
+      operador: 'text-blue-700',
+      coordinador1: 'text-purple-700',
+      coordinador2: 'text-purple-600',
+      coordinador3: 'text-purple-500',
+      cliente: 'text-emerald-700',
+    };
+    return '<span class="text-xs font-medium ' + (colors[rol] || 'text-gray-600') + '">' + (labels[rol] || rol) + '</span>';
+  }
+
+  function fechaTemplate(field) {
+    return function(props) {
+      var val = props[field];
+      if (!val) return '<span class="text-gray-400">-</span>';
+      var d = new Date(val);
+      return '<span title="' + d.toISOString() + '">' +
+        d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' ' +
+        d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+        '</span>';
+    };
+  }
+
+  function duracionTemplate(props) {
+    var secs = props.duracion_segundos;
+    if (!secs || secs === 0) return '<span class="text-gray-400">-</span>';
+    if (secs < 60) return '<span class="font-medium">' + secs + 's</span>';
+    var mins = Math.floor(secs / 60);
+    secs = secs % 60;
+    return '<span class="font-medium">' + mins + 'm ' + secs + 's</span>';
+  }
+
+  // ===========================================================================
+  // Grid
+  // ===========================================================================
+
+  var grid = new ej.grids.Grid({
+    dataSource: new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    }),
+    allowPaging: true,
+    allowSorting: true,
+    allowResizing: true,
+    pageSettings: { pageSize: 20, pageSizes: [10, 20, 50, 100] },
+    gridLines: 'Horizontal',
+    rowHeight: 48,
+    enableHover: true,
+    columns: [
+      { field: 'id', headerText: 'ID', width: 70, textAlign: 'Right', isPrimaryKey: true },
+      {
+        field: 'viaje_unidad',
+        headerText: 'Viaje',
+        width: 140,
+        clipMode: 'EllipsisWithTooltip',
+        template: function(props) {
+          var label = props.viaje_unidad
+            ? '<span class="font-medium">#' + props.id_unidad_viaje + '</span> <span class="text-gray-400">(' + props.viaje_unidad + ')</span>'
+            : '<span class="font-medium">#' + props.id_unidad_viaje + '</span>';
+          return '<div class="text-xs">' + label + '</div>';
+        },
+      },
+      {
+        field: 'tipo',
+        headerText: 'Tipo',
+        width: 120,
+        textAlign: 'Center',
+        template: function(props) { return tipoTemplate(props); },
+      },
+      {
+        field: 'destinatario_rol',
+        headerText: 'Destinatario',
+        width: 120,
+        textAlign: 'Center',
+        template: function(props) { return rolTemplate(props); },
+      },
+      {
+        field: 'telefono_llamado',
+        headerText: 'Telefono',
+        width: 130,
+        template: function(props) {
+          return '<span class="text-sm font-mono">' + (props.telefono_llamado || '-') + '</span>';
+        },
+      },
+      {
+        field: 'resultado',
+        headerText: 'Resultado',
+        width: 130,
+        textAlign: 'Center',
+        template: function(props) { return resultadoTemplate(props); },
+      },
+      {
+        field: 'duracion_segundos',
+        headerText: 'Duracion',
+        width: 90,
+        textAlign: 'Center',
+        template: function(props) { return duracionTemplate(props); },
+      },
+      {
+        field: 'creado_en',
+        headerText: 'Fecha',
+        width: 150,
+        template: fechaTemplate('creado_en'),
+      },
+      {
+        field: 'motivo',
+        headerText: 'Motivo',
+        width: 200,
+        clipMode: 'EllipsisWithTooltip',
+        allowSorting: false,
+        template: function(props) {
+          if (!props.motivo) return '<span class="text-gray-400">-</span>';
+          return '<span class="text-xs text-gray-600">' +
+            props.motivo.substring(0, 60) + (props.motivo.length > 60 ? '...' : '') +
+            '</span>';
+        },
+      },
+    ],
+    recordClick: function(args) {
+      showCallDetail(args.rowData);
+    },
+  });
+
+  grid.appendTo('#callsGrid');
+
+  // ===========================================================================
+  // Detail Dialog
+  // ===========================================================================
+
+  var detailDialog = new ej.popups.Dialog({
+    header: 'Detalle de llamada IA',
+    content: document.getElementById('callDetailDialog'),
+    showCloseIcon: true,
+    isModal: true,
+    width: '600px',
+    visible: false,
+    animationSettings: { effect: 'Zoom' },
+  });
+  detailDialog.appendTo('#callDetailDialog');
+
+  window.showCallDetail = function(data) {
+    document.getElementById('detail-id').textContent = '#' + data.id;
+
+    // Viaje
+    var viajeLabel = '#' + data.id_unidad_viaje;
+    if (data.viaje_origen) viajeLabel += ' (' + data.viaje_origen + ' → ' + data.viaje_destino + ')';
+    document.getElementById('detail-viaje').textContent = viajeLabel;
+
+    // Tipo
+    var tipoLabels = { paro: 'Paro', accidente: 'Accidente', verificacion: 'Verificacion' };
+    document.getElementById('detail-tipo').textContent = tipoLabels[data.tipo] || data.tipo;
+
+    // Resultado con color
+    var resultadoEl = document.getElementById('detail-resultado');
+    var resultadoLabels = { atendida: 'Atendida', no_atendida: 'No atendida', buzon: 'Buzon', error: 'Error' };
+    var resultadoColors = { atendida: 'text-emerald-600', no_atendida: 'text-amber-600', buzon: 'text-blue-600', error: 'text-red-600' };
+    resultadoEl.textContent = resultadoLabels[data.resultado] || data.resultado;
+    resultadoEl.className = 'font-medium ' + (resultadoColors[data.resultado] || '');
+
+    // Telefono
+    document.getElementById('detail-telefono').textContent = data.telefono_llamado || '-';
+
+    // Destinatario
+    var rolLabels = { operador: 'Operador', coordinador1: 'Coordinador 1', coordinador2: 'Coordinador 2', coordinador3: 'Coordinador 3', cliente: 'Cliente' };
+    document.getElementById('detail-destinatario').textContent = rolLabels[data.destinatario_rol] || data.destinatario_rol || '-';
+
+    // Duracion
+    var secs = data.duracion_segundos || 0;
+    if (secs === 0) {
+      document.getElementById('detail-duracion').textContent = '-';
+    } else if (secs < 60) {
+      document.getElementById('detail-duracion').textContent = secs + ' segundos';
+    } else {
+      document.getElementById('detail-duracion').textContent = Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    }
+
+    // Fecha
+    document.getElementById('detail-fecha').textContent =
+      data.creado_en ? new Date(data.creado_en).toLocaleString('es-MX') : '-';
+
+    // Ubicacion
+    if (data.lat_al_llamar && data.lng_al_llamar) {
+      document.getElementById('detail-ubicacion').innerHTML =
+        '<a href="https://maps.google.com/?q=' + data.lat_al_llamar + ',' + data.lng_al_llamar + '" ' +
+        'target="_blank" class="text-blue-600 hover:underline">' +
+        parseFloat(data.lat_al_llamar).toFixed(6) + ', ' + parseFloat(data.lng_al_llamar).toFixed(6) +
+        ' <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>' +
+        '</a>';
+    } else {
+      document.getElementById('detail-ubicacion').textContent = '-';
+    }
+
+    // Motivo
+    document.getElementById('detail-motivo').textContent = data.motivo || '-';
+
+    // Resumen
+    var resumenSection = document.getElementById('detail-resumen-section');
+    if (data.resumen_conversacion) {
+      resumenSection.classList.remove('hidden');
+      document.getElementById('detail-resumen').textContent = data.resumen_conversacion;
+    } else {
+      resumenSection.classList.add('hidden');
+    }
+
+    detailDialog.show();
+  };
+
+  // ===========================================================================
+  // Stats
+  // ===========================================================================
+
+  function loadStats() {
+    fetch('/ai/api/stats')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('stat-today').textContent = data.today.total;
+        document.getElementById('stat-answer-rate').textContent = data.today.answerRate + '%';
+        document.getElementById('stat-answered').textContent = data.today.atendidas;
+        document.getElementById('stat-unanswered').textContent = data.today.noAtendidas;
+        document.getElementById('stat-ia-trips').textContent = data.iaActiveTrips;
+
+        // Duracion promedio
+        var secs = data.today.avgDuracion;
+        if (secs > 0) {
+          document.getElementById('stat-avg-duration').textContent =
+            secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+        } else {
+          document.getElementById('stat-avg-duration').textContent = '-';
+        }
+
+        // Color tasa de respuesta
+        var rateEl = document.getElementById('stat-answer-rate');
+        if (data.today.answerRate >= 70) {
+          rateEl.className = 'text-2xl font-bold text-emerald-600 mt-1';
+        } else if (data.today.answerRate >= 40) {
+          rateEl.className = 'text-2xl font-bold text-amber-600 mt-1';
+        } else if (data.today.total > 0) {
+          rateEl.className = 'text-2xl font-bold text-red-600 mt-1';
+        }
+      })
+      .catch(function() {});
+  }
+
+  loadStats();
+  setInterval(loadStats, 30000);
+
+  // ===========================================================================
+  // Toast notification
+  // ===========================================================================
+
+  window.showToast = window.showToast || function(message, type) {
+    var colors = {
+      success: 'bg-emerald-600',
+      error: 'bg-red-600',
+      info: 'bg-blue-600',
+    };
+
+    var toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg transition-all duration-300 ' + (colors[type] || colors.info);
+    toast.textContent = message;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(function() {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(function() {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 300);
+    }, 4000);
+  };
+})();
+</script>

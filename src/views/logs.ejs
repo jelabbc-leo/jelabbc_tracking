@@ -2,18 +2,674 @@
 <%- include('partials/navbar') %>
 
 <main class="p-4 sm:p-6 lg:p-8">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Logs del Scraper</h1>
-    <p class="text-sm text-gray-500 mt-1">Registro de ejecuciones del scraper GPS</p>
+  <!-- Header con titulo y acciones -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Logs del Scraper</h1>
+      <p class="text-sm text-gray-500 mt-1">Registro de ejecuciones del scraper GPS</p>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- Scheduler toggle -->
+      <button id="btn-scheduler-toggle" onclick="toggleScheduler()"
+              class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors"
+              title="Habilitar/deshabilitar scheduler">
+        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span id="scheduler-toggle-text">Scheduler</span>
+      </button>
+
+      <!-- Status del scraper -->
+      <div id="scraper-status" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm">
+        <span id="status-dot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+        <span id="status-text" class="text-gray-600">Cargando...</span>
+      </div>
+
+      <!-- Boton ejecutar manual -->
+      <div class="relative" id="run-dropdown-container">
+        <button id="btn-run-manual" onclick="runScraper()"
+                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Ejecutar ahora
+        </button>
+      </div>
+
+      <!-- Boton limpiar logs antiguos -->
+      <button onclick="clearOldLogs()"
+              class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        Limpiar +30d
+      </button>
+    </div>
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-    <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-    </svg>
-    <h3 class="text-lg font-medium text-gray-500">Proximamente</h3>
-    <p class="text-sm text-gray-400 mt-1">Esta seccion se implementara en la Fase 2</p>
+  <!-- Tarjetas de estadisticas -->
+  <div id="stats-section" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Ejecuciones hoy</p>
+      <p id="stat-today-total" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Tasa exito</p>
+      <p id="stat-success-rate" class="text-2xl font-bold text-emerald-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Coords nuevas hoy</p>
+      <p id="stat-coords" class="text-2xl font-bold text-blue-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Errores hoy</p>
+      <p id="stat-errors" class="text-2xl font-bold text-red-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Duracion prom.</p>
+      <p id="stat-avg-duration" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Browser pool</p>
+      <p id="stat-pool" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Proveedor</label>
+        <select id="filter-provider" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Todos los proveedores</option>
+          <% (providers || []).forEach(function(p) { %>
+            <option value="<%= p.id %>"><%= p.nombre %><%= !p.activo ? ' (inactivo)' : '' %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+        <select id="filter-estado" onchange="applyFilters()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Todos los estados</option>
+          <option value="success">Exitoso</option>
+          <option value="error">Error</option>
+          <option value="running">Ejecutando</option>
+        </select>
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Desde</label>
+        <input type="date" id="filter-fecha-desde" onchange="applyFilters()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div class="flex-1 min-w-0">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Hasta</label>
+        <input type="date" id="filter-fecha-hasta" onchange="applyFilters()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div class="flex-shrink-0">
+        <button onclick="clearFilters()"
+                class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Limpiar filtros
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid de logs -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div id="logsGrid"></div>
+  </div>
+
+  <!-- Dialog detalle de log -->
+  <div id="logDetailDialog" style="display:none;">
+    <div id="logDetailContent" class="p-4">
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">ID</label>
+            <p id="detail-id" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Proveedor</label>
+            <p id="detail-provider" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Estado</label>
+            <p id="detail-estado" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Duracion</label>
+            <p id="detail-duracion" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Inicio</label>
+            <p id="detail-inicio" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Fin</label>
+            <p id="detail-fin" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Dispositivos encontrados</label>
+            <p id="detail-dispositivos" class="font-medium">-</p>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Coordenadas nuevas</label>
+            <p id="detail-coords" class="font-medium">-</p>
+          </div>
+          <div class="col-span-2">
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Fuentes usadas</label>
+            <p id="detail-fuentes" class="font-medium">-</p>
+          </div>
+        </div>
+        <div id="detail-error-section" class="hidden">
+          <label class="text-xs text-gray-500 uppercase tracking-wider">Error</label>
+          <pre id="detail-error" class="mt-1 p-3 bg-red-50 text-red-700 text-sm rounded-lg overflow-auto max-h-40 whitespace-pre-wrap">-</pre>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 
 <%- include('partials/foot') %>
+
+<script>
+(function() {
+  // ===========================================================================
+  // Syncfusion DataManager - Paginacion y sorting server-side
+  // ===========================================================================
+
+  var currentFilters = {};
+
+  // Custom DataAdaptor para nuestro backend
+  var LogsAdaptor = new ej.data.UrlAdaptor();
+
+  function buildGridUrl() {
+    var base = '/logs/api/list';
+    var params = [];
+    if (currentFilters.providerId) params.push('providerId=' + currentFilters.providerId);
+    if (currentFilters.estado) params.push('estado=' + currentFilters.estado);
+    if (currentFilters.fechaDesde) params.push('fechaDesde=' + currentFilters.fechaDesde);
+    if (currentFilters.fechaHasta) params.push('fechaHasta=' + currentFilters.fechaHasta);
+    return base + (params.length ? '?' + params.join('&') : '');
+  }
+
+  var dataManager = new ej.data.DataManager({
+    url: buildGridUrl(),
+    adaptor: new ej.data.UrlAdaptor(),
+    crossDomain: false,
+  });
+
+  // Template para columna de estado
+  function estadoTemplate(props) {
+    var estado = props.estado || 'unknown';
+    var colors = {
+      running: 'bg-blue-100 text-blue-800',
+      success: 'bg-emerald-100 text-emerald-800',
+      error: 'bg-red-100 text-red-800',
+    };
+    var colorClass = colors[estado] || 'bg-gray-100 text-gray-800';
+    var labels = { running: 'Ejecutando', success: 'Exitoso', error: 'Error' };
+    var label = labels[estado] || estado;
+
+    var icon = '';
+    if (estado === 'running') {
+      icon = '<svg class="w-3 h-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
+    } else if (estado === 'success') {
+      icon = '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+    } else if (estado === 'error') {
+      icon = '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+    }
+
+    return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + colorClass + '">' + icon + label + '</span>';
+  }
+
+  // Template para duracion
+  function duracionTemplate(props) {
+    if (!props.inicio || !props.fin) return '<span class="text-gray-400">-</span>';
+    var inicio = new Date(props.inicio);
+    var fin = new Date(props.fin);
+    var diffMs = fin - inicio;
+    if (diffMs < 0) return '<span class="text-gray-400">-</span>';
+    var secs = Math.round(diffMs / 1000);
+    if (secs < 60) return '<span class="font-medium">' + secs + 's</span>';
+    var mins = Math.floor(secs / 60);
+    secs = secs % 60;
+    return '<span class="font-medium">' + mins + 'm ' + secs + 's</span>';
+  }
+
+  // Template para fecha
+  function fechaTemplate(field) {
+    return function(props) {
+      var val = props[field];
+      if (!val) return '<span class="text-gray-400">-</span>';
+      var d = new Date(val);
+      return '<span title="' + d.toISOString() + '">' +
+        d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' ' +
+        d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+        '</span>';
+    };
+  }
+
+  var grid = new ej.grids.Grid({
+    dataSource: dataManager,
+    allowPaging: true,
+    allowSorting: true,
+    allowResizing: true,
+    pageSettings: { pageSize: 20, pageSizes: [10, 20, 50, 100] },
+    gridLines: 'Horizontal',
+    rowHeight: 44,
+    enableHover: true,
+    columns: [
+      {
+        field: 'id',
+        headerText: 'ID',
+        width: 70,
+        textAlign: 'Right',
+        isPrimaryKey: true,
+      },
+      {
+        field: 'provider_nombre',
+        headerText: 'Proveedor',
+        width: 160,
+        clipMode: 'EllipsisWithTooltip',
+        template: function(props) {
+          var name = props.provider_nombre || 'ID: ' + (props.provider_id || '?');
+          return '<span class="font-medium text-gray-800">' + name + '</span>';
+        },
+      },
+      {
+        field: 'estado',
+        headerText: 'Estado',
+        width: 120,
+        textAlign: 'Center',
+        template: function(props) { return estadoTemplate(props); },
+      },
+      {
+        field: 'inicio',
+        headerText: 'Inicio',
+        width: 160,
+        template: fechaTemplate('inicio'),
+      },
+      {
+        headerText: 'Duracion',
+        width: 100,
+        textAlign: 'Center',
+        allowSorting: false,
+        template: function(props) { return duracionTemplate(props); },
+      },
+      {
+        field: 'dispositivos_encontrados',
+        headerText: 'Dispositivos',
+        width: 110,
+        textAlign: 'Right',
+        template: function(props) {
+          var val = props.dispositivos_encontrados || 0;
+          return '<span class="font-medium">' + val + '</span>';
+        },
+      },
+      {
+        field: 'coordenadas_nuevas',
+        headerText: 'Coords nuevas',
+        width: 120,
+        textAlign: 'Right',
+        template: function(props) {
+          var val = props.coordenadas_nuevas || 0;
+          var color = val > 0 ? 'text-emerald-600 font-semibold' : 'text-gray-400';
+          return '<span class="' + color + '">' + val + '</span>';
+        },
+      },
+      {
+        field: 'fuentes_usadas',
+        headerText: 'Fuentes',
+        width: 160,
+        clipMode: 'EllipsisWithTooltip',
+        allowSorting: false,
+        template: function(props) {
+          if (!props.fuentes_usadas || props.fuentes_usadas === 'none') {
+            return '<span class="text-gray-400">-</span>';
+          }
+          var fuentes = props.fuentes_usadas.split(',');
+          var colors = {
+            network: 'bg-blue-100 text-blue-700',
+            globals: 'bg-purple-100 text-purple-700',
+            dom: 'bg-amber-100 text-amber-700',
+            none: 'bg-gray-100 text-gray-500',
+          };
+          var badges = fuentes.map(function(f) {
+            var cl = colors[f.trim()] || 'bg-gray-100 text-gray-700';
+            return '<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ' + cl + '">' + f.trim() + '</span>';
+          });
+          return badges.join(' ');
+        },
+      },
+      {
+        field: 'error_mensaje',
+        headerText: 'Error',
+        width: 220,
+        clipMode: 'EllipsisWithTooltip',
+        allowSorting: false,
+        template: function(props) {
+          if (!props.error_mensaje) return '<span class="text-gray-400">-</span>';
+          return '<span class="text-red-600 text-xs" title="' + props.error_mensaje.replace(/"/g, '&quot;') + '">' +
+            props.error_mensaje.substring(0, 80) +
+            (props.error_mensaje.length > 80 ? '...' : '') + '</span>';
+        },
+      },
+    ],
+    recordClick: function(args) {
+      showLogDetail(args.rowData);
+    },
+  });
+
+  grid.appendTo('#logsGrid');
+
+  // ===========================================================================
+  // Filtros
+  // ===========================================================================
+
+  window.applyFilters = function() {
+    currentFilters = {
+      providerId: document.getElementById('filter-provider').value,
+      estado: document.getElementById('filter-estado').value,
+      fechaDesde: document.getElementById('filter-fecha-desde').value,
+      fechaHasta: document.getElementById('filter-fecha-hasta').value,
+    };
+
+    // Actualizar la URL del DataManager y refrescar el grid
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  window.clearFilters = function() {
+    document.getElementById('filter-provider').value = '';
+    document.getElementById('filter-estado').value = '';
+    document.getElementById('filter-fecha-desde').value = '';
+    document.getElementById('filter-fecha-hasta').value = '';
+    currentFilters = {};
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  // Funcion para refrescar solo el grid (sin recargar pagina)
+  window.refreshGrid = function() {
+    grid.dataSource = new ej.data.DataManager({
+      url: buildGridUrl(),
+      adaptor: new ej.data.UrlAdaptor(),
+      crossDomain: false,
+    });
+  };
+
+  // ===========================================================================
+  // Detail Dialog
+  // ===========================================================================
+
+  var detailDialog = new ej.popups.Dialog({
+    header: 'Detalle del Log',
+    content: document.getElementById('logDetailDialog'),
+    showCloseIcon: true,
+    isModal: true,
+    width: '560px',
+    visible: false,
+    animationSettings: { effect: 'Zoom' },
+  });
+  detailDialog.appendTo('#logDetailDialog');
+
+  window.showLogDetail = function(data) {
+    document.getElementById('detail-id').textContent = '#' + data.id;
+    document.getElementById('detail-provider').textContent = data.provider_nombre || 'ID: ' + data.provider_id;
+    document.getElementById('detail-inicio').textContent = data.inicio ? new Date(data.inicio).toLocaleString('es-MX') : '-';
+    document.getElementById('detail-fin').textContent = data.fin ? new Date(data.fin).toLocaleString('es-MX') : '-';
+    document.getElementById('detail-dispositivos').textContent = data.dispositivos_encontrados || 0;
+    document.getElementById('detail-coords').textContent = data.coordenadas_nuevas || 0;
+    document.getElementById('detail-fuentes').textContent = data.fuentes_usadas || '-';
+
+    // Duracion
+    if (data.inicio && data.fin) {
+      var diffMs = new Date(data.fin) - new Date(data.inicio);
+      var secs = Math.round(diffMs / 1000);
+      document.getElementById('detail-duracion').textContent =
+        secs < 60 ? secs + ' segundos' : Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    } else {
+      document.getElementById('detail-duracion').textContent = '-';
+    }
+
+    // Estado con color
+    var estadoEl = document.getElementById('detail-estado');
+    var colors = { running: 'text-blue-600', success: 'text-emerald-600', error: 'text-red-600' };
+    var labels = { running: 'Ejecutando', success: 'Exitoso', error: 'Error' };
+    estadoEl.textContent = labels[data.estado] || data.estado;
+    estadoEl.className = 'font-medium ' + (colors[data.estado] || '');
+
+    // Error
+    var errorSection = document.getElementById('detail-error-section');
+    if (data.error_mensaje) {
+      errorSection.classList.remove('hidden');
+      document.getElementById('detail-error').textContent = data.error_mensaje;
+    } else {
+      errorSection.classList.add('hidden');
+    }
+
+    detailDialog.show();
+  };
+
+  // ===========================================================================
+  // Estadisticas
+  // ===========================================================================
+
+  function loadStats() {
+    fetch('/logs/api/stats')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('stat-today-total').textContent = data.today.total;
+        document.getElementById('stat-success-rate').textContent = data.today.successRate + '%';
+        document.getElementById('stat-coords').textContent = data.today.coordsNuevas;
+        document.getElementById('stat-errors').textContent = data.today.errores;
+
+        // Duracion promedio
+        if (data.avgDurationSecs !== null) {
+          var secs = data.avgDurationSecs;
+          document.getElementById('stat-avg-duration').textContent =
+            secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+        } else {
+          document.getElementById('stat-avg-duration').textContent = '-';
+        }
+
+        // Colorear tasa de exito
+        var rateEl = document.getElementById('stat-success-rate');
+        if (data.today.successRate >= 80) {
+          rateEl.className = 'text-2xl font-bold text-emerald-600 mt-1';
+        } else if (data.today.successRate >= 50) {
+          rateEl.className = 'text-2xl font-bold text-amber-600 mt-1';
+        } else if (data.today.total > 0) {
+          rateEl.className = 'text-2xl font-bold text-red-600 mt-1';
+        }
+
+        // Colorear errores
+        var errEl = document.getElementById('stat-errors');
+        errEl.className = data.today.errores > 0
+          ? 'text-2xl font-bold text-red-600 mt-1'
+          : 'text-2xl font-bold text-gray-400 mt-1';
+      })
+      .catch(function() {});
+  }
+
+  // ===========================================================================
+  // Scraper & Scheduler Status
+  // ===========================================================================
+
+  function loadScraperStatus() {
+    // Status del scraper
+    fetch('/api/scraper/status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var dot = document.getElementById('status-dot');
+        var text = document.getElementById('status-text');
+
+        if (data.isRunning) {
+          dot.className = 'w-2 h-2 rounded-full bg-blue-500 animate-pulse';
+          text.textContent = 'Ejecutando...';
+          text.className = 'text-blue-600 font-medium';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          text.textContent = 'Inactivo';
+          text.className = 'text-gray-600';
+        }
+
+        // Browser pool
+        if (data.browserPool) {
+          document.getElementById('stat-pool').textContent =
+            data.browserPool.busy + '/' + data.browserPool.max;
+        }
+      })
+      .catch(function() {
+        document.getElementById('status-text').textContent = 'Sin conexion';
+      });
+
+    // Status del scheduler
+    fetch('/api/scheduler/status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var btn = document.getElementById('btn-scheduler-toggle');
+        var text = document.getElementById('scheduler-toggle-text');
+        if (data.enabled) {
+          btn.className = 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors';
+          text.textContent = 'Scheduler ON';
+        } else {
+          btn.className = 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors';
+          text.textContent = 'Scheduler OFF';
+        }
+      })
+      .catch(function() {});
+  }
+
+  // Cargar al inicio y cada 15s
+  loadStats();
+  loadScraperStatus();
+  setInterval(function() {
+    loadScraperStatus();
+    loadStats();
+  }, 15000);
+
+  // ===========================================================================
+  // Acciones
+  // ===========================================================================
+
+  window.runScraper = function(providerId) {
+    var btn = document.getElementById('btn-run-manual');
+    btn.disabled = true;
+    var originalHTML = btn.innerHTML;
+    btn.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>Ejecutando...';
+
+    var body = {};
+    if (providerId) body.providerId = providerId;
+
+    fetch('/api/scraper/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+
+      if (data.success) {
+        // Refrescar grid y stats sin recargar pagina
+        refreshGrid();
+        loadStats();
+        loadScraperStatus();
+
+        // Mostrar notificacion temporal
+        showToast('Scraping completado: ' + (data.data.totalNewCoords || data.data.coordsSaved || 0) + ' coords nuevas', 'success');
+      } else {
+        showToast('Error: ' + (data.error || 'Error desconocido'), 'error');
+      }
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      showToast('Error de conexion: ' + err.message, 'error');
+    });
+  };
+
+  window.toggleScheduler = function() {
+    fetch('/api/scheduler/toggle', { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        loadScraperStatus();
+        showToast('Scheduler ' + (data.enabled ? 'habilitado' : 'deshabilitado'), 'info');
+      })
+      .catch(function(err) {
+        showToast('Error: ' + err.message, 'error');
+      });
+  };
+
+  window.clearOldLogs = function() {
+    if (!confirm('¿Eliminar logs de mas de 30 dias? Esta accion no se puede deshacer.')) return;
+
+    fetch('/logs/api/clear', { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) {
+          refreshGrid();
+          loadStats();
+          showToast(data.message || 'Logs eliminados', 'success');
+        } else {
+          showToast('Error: ' + (data.error || 'Error desconocido'), 'error');
+        }
+      })
+      .catch(function(err) {
+        showToast('Error: ' + err.message, 'error');
+      });
+  };
+
+  // ===========================================================================
+  // Toast notification
+  // ===========================================================================
+
+  window.showToast = function(message, type) {
+    var colors = {
+      success: 'bg-emerald-600',
+      error: 'bg-red-600',
+      info: 'bg-blue-600',
+    };
+
+    var toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg transition-all duration-300 ' + (colors[type] || colors.info);
+    toast.textContent = message;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    document.body.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(function() {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+
+    // Remove after 4 seconds
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(function() {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 300);
+    }, 4000);
+  };
+})();
+</script>
