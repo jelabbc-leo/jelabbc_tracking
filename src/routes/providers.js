@@ -128,7 +128,7 @@ router.post('/api/config', async (req, res) => {
         telefono_monitor: coordinador2Telefono || '',
         provider_id: providerId,
         ia_llamadas_activas: 1,
-        umbral_paro_minutos: 30,
+        umbral_paro_minutos: 5,
         frecuencia_monitoreo_min: 5,
         estado_actual: 'en_ruta',
       };
