@@ -78,6 +78,18 @@ ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS link_dropoff_vacio VARCHAR(
 ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS link_carga_vacio VARCHAR(500) DEFAULT NULL;
 ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS link_entrega_cargado VARCHAR(500) DEFAULT NULL;
 
+-- Permitir coordenadas sin viaje asociado (para verificar scraping)
+ALTER TABLE op_coordinates MODIFY COLUMN id_unidad_viaje BIGINT UNSIGNED DEFAULT NULL;
+
+-- Columnas adicionales requeridas por la app (viajes, dashboard, IA)
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS numero_economico VARCHAR(50) DEFAULT NULL;
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS origen VARCHAR(200) DEFAULT NULL;
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS destino VARCHAR(200) DEFAULT NULL;
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS id_unidad VARCHAR(50) DEFAULT NULL;
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS fecha_salida DATETIME DEFAULT NULL;
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS fecha_llegada DATETIME DEFAULT NULL;
+ALTER TABLE unidades_viajes ADD COLUMN IF NOT EXISTS fecha_llegada_estimada DATETIME DEFAULT NULL;
+
 -- Ampliar enum en eventos_unidad (si la tabla existe)
 ALTER TABLE eventos_unidad
   MODIFY COLUMN tipo_evento ENUM(

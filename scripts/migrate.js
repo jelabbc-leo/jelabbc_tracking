@@ -129,6 +129,18 @@ const SQL_STATEMENTS = [
   { name: 'Col link_carga_vacio', sql: `ALTER TABLE unidades_viajes ADD COLUMN link_carga_vacio VARCHAR(500) DEFAULT NULL`, ignoreDup: true },
   { name: 'Col link_entrega_cargado', sql: `ALTER TABLE unidades_viajes ADD COLUMN link_entrega_cargado VARCHAR(500) DEFAULT NULL`, ignoreDup: true },
 
+  // --- Permitir coordenadas sin viaje asociado ---
+  { name: 'op_coordinates.id_unidad_viaje nullable', sql: `ALTER TABLE op_coordinates MODIFY COLUMN id_unidad_viaje BIGINT UNSIGNED DEFAULT NULL`, ignoreDup: true },
+
+  // --- Columnas adicionales requeridas por la app (viajes, dashboard, IA) ---
+  { name: 'Col numero_economico', sql: `ALTER TABLE unidades_viajes ADD COLUMN numero_economico VARCHAR(50) DEFAULT NULL`, ignoreDup: true },
+  { name: 'Col origen', sql: `ALTER TABLE unidades_viajes ADD COLUMN origen VARCHAR(200) DEFAULT NULL`, ignoreDup: true },
+  { name: 'Col destino', sql: `ALTER TABLE unidades_viajes ADD COLUMN destino VARCHAR(200) DEFAULT NULL`, ignoreDup: true },
+  { name: 'Col id_unidad', sql: `ALTER TABLE unidades_viajes ADD COLUMN id_unidad VARCHAR(50) DEFAULT NULL`, ignoreDup: true },
+  { name: 'Col fecha_salida', sql: `ALTER TABLE unidades_viajes ADD COLUMN fecha_salida DATETIME DEFAULT NULL`, ignoreDup: true },
+  { name: 'Col fecha_llegada', sql: `ALTER TABLE unidades_viajes ADD COLUMN fecha_llegada DATETIME DEFAULT NULL`, ignoreDup: true },
+  { name: 'Col fecha_llegada_estimada', sql: `ALTER TABLE unidades_viajes ADD COLUMN fecha_llegada_estimada DATETIME DEFAULT NULL`, ignoreDup: true },
+
   // --- Ampliar enums ---
   {
     name: 'Ampliar enum eventos_unidad.tipo_evento',
