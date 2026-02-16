@@ -276,7 +276,10 @@ async function _processAndSaveCoords(coords, provider, activeTrips) {
  */
 async function _isCoordDuplicate(tripId, coord) {
   try {
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
+    // Ventana de dedup: misma coord exacta en los ultimos 4 minutos
+    // (el scraper corre cada 5 min, asi siempre pasa al menos 1 por ciclo
+    // incluso para vehiculos detenidos con coord identica)
+    const fourMinAgo = new Date(Date.now() - 4 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
 
     const existing = await api.query(
@@ -284,7 +287,7 @@ async function _isCoordDuplicate(tripId, coord) {
        WHERE id_unidad_viaje = ${tripId}
          AND ABS(latitud - ${coord.lat}) < 0.00001
          AND ABS(longitud - ${coord.lng}) < 0.00001
-         AND fecha_extraccion > '${fiveMinAgo}'
+         AND fecha_extraccion > '${fourMinAgo}'
        LIMIT 1`
     );
 

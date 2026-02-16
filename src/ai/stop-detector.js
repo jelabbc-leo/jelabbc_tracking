@@ -143,8 +143,8 @@ async function detectStops() {
 async function _analyzeTrip(trip) {
   const umbralMinutos = trip.umbral_paro_minutos || 30;
 
-  // Obtener coordenadas de las ultimas horas (suficiente para cubrir el umbral)
-  const lookbackMinutes = Math.max(umbralMinutos * 3, 120);
+  // Ventana amplia: al menos 24h para detectar paros de vehiculos detenidos por horas
+  const lookbackMinutes = Math.max(umbralMinutos * 3, 1440);
   const since = new Date(Date.now() - lookbackMinutes * 60 * 1000)
     .toISOString().slice(0, 19).replace('T', ' ');
 
