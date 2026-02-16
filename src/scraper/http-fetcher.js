@@ -56,7 +56,7 @@ function detectPlatform(url) {
  */
 async function fetch(shareUrl, options = {}) {
   const platform = detectPlatform(shareUrl);
-  const timeoutMs = options.timeoutMs || 15000;
+  const timeoutMs = options.timeoutMs || 90000;
 
   log('info', `Plataforma detectada: ${platform} para URL: ${_truncate(shareUrl, 80)}`);
 
