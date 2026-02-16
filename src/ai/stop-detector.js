@@ -148,6 +148,8 @@ async function _analyzeTrip(trip) {
   const since = new Date(Date.now() - lookbackMinutes * 60 * 1000)
     .toISOString().slice(0, 19).replace('T', ' ');
 
+  log('info', `Viaje ${trip.id}: umbral=${umbralMinutos}min, lookback=${lookbackMinutes}min, since=${since}`);
+
   const coords = await api.query(
     `SELECT latitud, longitud, fecha_extraccion, fecha_gps, velocidad
      FROM op_coordinates
@@ -158,14 +160,17 @@ async function _analyzeTrip(trip) {
   );
 
   if (!coords || coords.length < MIN_COORDS_FOR_ANALYSIS) {
-    return null; // No hay suficientes datos para analizar
+    log('info', `Viaje ${trip.id}: solo ${coords ? coords.length : 0} coords (necesita ${MIN_COORDS_FOR_ANALYSIS}), saltando`);
+    return null;
   }
 
   // Verificar si todas las coords recientes estan dentro del radio de paro
   const spread = maxSpread(coords);
+  log('info', `Viaje ${trip.id}: ${coords.length} coords, spread=${spread.toFixed(1)}m (limite=${STOP_RADIUS_METERS}m)`);
 
   if (spread > STOP_RADIUS_METERS) {
-    return null; // El vehiculo se ha movido, no hay paro
+    log('info', `Viaje ${trip.id}: spread ${spread.toFixed(1)}m > ${STOP_RADIUS_METERS}m, vehiculo en movimiento`);
+    return null;
   }
 
   // Verificar tambien la velocidad - si hay coordenadas con velocidad > 5 km/h, no es paro
@@ -173,11 +178,11 @@ async function _analyzeTrip(trip) {
     c.velocidad !== null && c.velocidad !== undefined && parseFloat(c.velocidad) > 5
   );
   if (hasMovement) {
+    log('info', `Viaje ${trip.id}: velocidad > 5 km/h detectada, no es paro`);
     return null;
   }
 
   // Calcular cuanto tiempo ha estado detenido
-  // Usamos la coordenada mas antigua y la mas reciente del conjunto
   const oldest = coords[coords.length - 1];
   const newest = coords[0];
 
@@ -186,17 +191,21 @@ async function _analyzeTrip(trip) {
   const stoppedMs = newestTime - oldestTime;
   const stoppedMinutes = Math.round(stoppedMs / 60000);
 
+  log('info', `Viaje ${trip.id}: detenido ${stoppedMinutes}min (umbral=${umbralMinutos}min), oldest=${oldest.fecha_extraccion}, newest=${newest.fecha_extraccion}`);
+
   if (stoppedMinutes < umbralMinutos) {
-    return null; // Aun no supera el umbral
+    log('info', `Viaje ${trip.id}: ${stoppedMinutes}min < umbral ${umbralMinutos}min, aun no`);
+    return null;
   }
 
   // Verificar que no haya una alerta reciente para este viaje
-  // (evitar spam de llamadas: no alertar si ya se alerto en la ultima hora)
   const hasRecentAlert = await _hasRecentAlert(trip.id);
   if (hasRecentAlert) {
-    log('info', `Viaje ${trip.id}: paro detectado pero ya hay alerta reciente, saltando`);
+    log('info', `Viaje ${trip.id}: PARO DETECTADO (${stoppedMinutes}min) pero ya hay alerta reciente, saltando`);
     return null;
   }
+
+  log('info', `Viaje ${trip.id}: *** PARO CONFIRMADO *** ${stoppedMinutes}min detenido, disparando llamada IA`);
 
   return {
     tripId: trip.id,
@@ -251,28 +260,41 @@ async function _hasRecentAlert(tripId) {
       .toISOString().slice(0, 19).replace('T', ' ');
 
     // Revisar en log_ai_calls si ya hubo una llamada por paro recientemente
-    const recent = await api.query(
-      `SELECT id FROM log_ai_calls
-       WHERE id_unidad_viaje = ${tripId}
-         AND tipo = 'paro'
-         AND creado_en >= '${oneHourAgo}'
-       LIMIT 1`
-    );
-
-    if (recent && recent.length > 0) return true;
+    let recentCalls = 0;
+    try {
+      const recent = await api.query(
+        `SELECT id FROM log_ai_calls
+         WHERE id_unidad_viaje = ${tripId}
+           AND tipo = 'paro'
+           AND creado_en >= '${oneHourAgo}'
+         LIMIT 1`
+      );
+      recentCalls = recent ? recent.length : 0;
+    } catch (err) {
+      log('warn', `Viaje ${tripId}: error consultando log_ai_calls: ${err.message}`);
+    }
 
     // Tambien revisar en eventos_unidad
-    const recentEvent = await api.query(
-      `SELECT id FROM eventos_unidad
-       WHERE id_unidad_viaje = ${tripId}
-         AND tipo_evento = 'alerta_paro_ia'
-         AND ocurrido_en >= '${oneHourAgo}'
-       LIMIT 1`
-    );
+    let recentEvents = 0;
+    try {
+      const recentEvent = await api.query(
+        `SELECT id FROM eventos_unidad
+         WHERE id_unidad_viaje = ${tripId}
+           AND tipo_evento = 'alerta_paro_ia'
+           AND ocurrido_en >= '${oneHourAgo}'
+         LIMIT 1`
+      );
+      recentEvents = recentEvent ? recentEvent.length : 0;
+    } catch (err) {
+      log('warn', `Viaje ${tripId}: error consultando eventos_unidad: ${err.message}`);
+    }
 
-    return recentEvent && recentEvent.length > 0;
-  } catch {
-    return false; // En caso de error, permitir la alerta
+    const blocked = recentCalls > 0 || recentEvents > 0;
+    log('info', `Viaje ${tripId}: hasRecentAlert=${blocked} (calls=${recentCalls}, events=${recentEvents})`);
+    return blocked;
+  } catch (err) {
+    log('warn', `Viaje ${tripId}: error en _hasRecentAlert: ${err.message}, permitiendo alerta`);
+    return false;
   }
 }
 
