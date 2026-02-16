@@ -256,7 +256,8 @@ async function _loadAIEnabledTrips() {
  */
 async function _hasRecentAlert(tripId) {
   try {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    // Ventana de cooldown: 10 minutos (para demo; en produccion subir a 60 min)
+    const cooldownAgo = new Date(Date.now() - 10 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
 
     // Revisar en log_ai_calls si ya hubo una llamada por paro recientemente
@@ -266,7 +267,7 @@ async function _hasRecentAlert(tripId) {
         `SELECT id FROM log_ai_calls
          WHERE id_unidad_viaje = ${tripId}
            AND tipo = 'paro'
-           AND creado_en >= '${oneHourAgo}'
+           AND creado_en >= '${cooldownAgo}'
          LIMIT 1`
       );
       recentCalls = recent ? recent.length : 0;
@@ -281,7 +282,7 @@ async function _hasRecentAlert(tripId) {
         `SELECT id FROM eventos_unidad
          WHERE id_unidad_viaje = ${tripId}
            AND tipo_evento = 'alerta_paro_ia'
-           AND ocurrido_en >= '${oneHourAgo}'
+           AND ocurrido_en >= '${cooldownAgo}'
          LIMIT 1`
       );
       recentEvents = recentEvent ? recentEvent.length : 0;
