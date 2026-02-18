@@ -318,12 +318,9 @@ async function _makeCallVapiDirect(alert, contact, motivo, protocol) {
       motivo: `Paro detectado: ${alert.stoppedMinutes} min`,
     });
 
-    // URL del webhook de monitoreo donde VAPI enviara los resultados
-    // (end-of-call-report, transcripts, status-updates)
-    const MONITOREO_WEBHOOK_URL = process.env.MONITOREO_WEBHOOK_URL
-      || 'https://jelabbc-tracking.azurewebsites.net/api/webhooks/vapi-monitoreo';
-
     // Construir payload para POST https://api.vapi.ai/call
+    // El end-of-call-report va al webhook de JELA-API-Logistica (.NET),
+    // que es quien actualiza log_monitoreo_sesiones en la BD.
     const payload = {
       // Numero de telefono desde el cual se llama (VAPI free: +12083706590)
       phoneNumberId: VAPI_PHONE_NUMBER_ID,
@@ -334,11 +331,9 @@ async function _makeCallVapiDirect(alert, contact, motivo, protocol) {
         name: contact.nombre || 'Contacto',
       },
 
-      // Webhook: los eventos de ESTA llamada van a jelabbc_tracking (no a la API .NET)
-      serverUrl: MONITOREO_WEBHOOK_URL,
-
-      // Metadata para tracking en webhooks
+      // Metadata para que la API .NET sepa que es una llamada de monitoreo
       metadata: {
+        source: 'monitoreo',
         tripId: String(alert.tripId),
         contactRole: contact.tipo_contacto,
         reason: 'stop_alert',

@@ -20,7 +20,6 @@ const PORT = process.env.PORT || 8080;
 const coordinator = require('./src/scraper/coordinator');
 const stopDetector = require('./src/ai/stop-detector');
 const vapiTrigger = require('./src/ai/vapi-trigger');
-const monitoreoIncoming = require('./src/ai/monitoreo-incoming');
 const monitoreoSync = require('./src/ai/monitoreo-sync');
 const monitoreoSesiones = require('./src/ai/monitoreo-sesiones');
 
@@ -180,36 +179,6 @@ app.post('/api/ai/toggle-detection', requireAuth, (req, res) => {
   aiDetectionEnabled = !aiDetectionEnabled;
   console.log(`[AI] Deteccion de paros ${aiDetectionEnabled ? 'habilitada' : 'deshabilitada'} por usuario`);
   res.json({ enabled: aiDetectionEnabled });
-});
-
-// ---------------------------------------------------------------------------
-// Webhook VAPI para llamadas entrantes (Fase 6)
-// Este endpoint recibe eventos de VAPI: assistant-request, end-of-call-report,
-// status-update, transcript. NO requiere auth porque VAPI lo llama directamente.
-// ---------------------------------------------------------------------------
-
-app.post('/api/webhooks/vapi-monitoreo', async (req, res) => {
-  try {
-    const result = await monitoreoIncoming.handleWebhook(req.body);
-    if (result) {
-      res.json(result);
-    } else {
-      res.json({ ok: true });
-    }
-  } catch (err) {
-    console.error('[Webhook VAPI Monitoreo] Error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Sync manual de numeros autorizados
-app.post('/api/monitoreo/sync-numbers', requireAuth, async (req, res) => {
-  try {
-    const result = await monitoreoSync.syncNumbers();
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
 });
 
 // ---------------------------------------------------------------------------
