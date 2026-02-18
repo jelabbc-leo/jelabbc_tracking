@@ -1,0 +1,181 @@
+<%- include('../partials/head') %>
+<%- include('../partials/navbar') %>
+
+<main class="p-4 sm:p-6 lg:p-8">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Sesiones de Monitoreo</h1>
+      <p class="text-sm text-gray-500 mt-1">Historial de llamadas entrantes y salientes del sistema de monitoreo</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/ai/monitoreo" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Panel Monitoreo
+      </a>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+    <div class="flex flex-wrap items-end gap-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Direccion</label>
+        <select id="filtro-direccion" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="recargarGrid()">
+          <option value="">Todas</option>
+          <option value="entrante">Entrantes</option>
+          <option value="saliente">Salientes</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Estado</label>
+        <select id="filtro-estado" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="recargarGrid()">
+          <option value="">Todos</option>
+          <option value="completada">Completada</option>
+          <option value="fallida">Fallida</option>
+          <option value="en_curso">En curso</option>
+          <option value="zombie">Zombie</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Desde</label>
+        <input id="filtro-desde" type="date" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="recargarGrid()">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Hasta</label>
+        <input id="filtro-hasta" type="date" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="recargarGrid()">
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div id="grid-sesiones"></div>
+  </div>
+</main>
+
+<!-- Dialog detalle de sesion -->
+<div id="dialog-detalle" style="display:none;">
+  <div id="detalle-content" class="p-2 space-y-4">
+    <p class="text-gray-400 text-sm">Cargando...</p>
+  </div>
+</div>
+
+<script>
+let gridSesiones = null;
+let dialogDetalle = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  gridSesiones = new ej.grids.Grid({
+    dataSource: new ej.data.DataManager({
+      url: buildUrl(),
+      adaptor: new ej.data.WebApiAdaptor(),
+      crossDomain: true,
+    }),
+    allowPaging: true, pageSettings: { pageSize: 15 },
+    allowSorting: true,
+    rowSelected: function(args) { verDetalle(args.data.id); },
+    columns: [
+      { field: 'id', headerText: 'ID', width: 55, textAlign: 'Center' },
+      { field: 'direccion', headerText: 'Dir.', width: 85, textAlign: 'Center',
+        template: '<span class="px-2 py-1 text-xs rounded-full ${direccion === "entrante" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}">${direccion}</span>' },
+      { field: 'estado', headerText: 'Estado', width: 100, textAlign: 'Center',
+        template: '<span class="px-2 py-1 text-xs rounded-full ${estado === "completada" ? "bg-green-100 text-green-800" : estado === "fallida" ? "bg-red-100 text-red-800" : estado === "zombie" ? "bg-gray-100 text-gray-800" : "bg-yellow-100 text-yellow-800"}">${estado}</span>' },
+      { field: 'nombre_contacto', headerText: 'Contacto', width: 120 },
+      { field: 'rol_contacto', headerText: 'Rol', width: 100 },
+      { field: 'telefono', headerText: 'Telefono', width: 120 },
+      { field: 'placas_unidad', headerText: 'Unidad', width: 100 },
+      { field: 'motivo', headerText: 'Motivo', width: 200 },
+      { field: 'duracion_segundos', headerText: 'Dur. (s)', width: 75, textAlign: 'Center' },
+      { field: 'creado_en', headerText: 'Fecha', width: 140, type: 'datetime', format: 'dd/MM/yyyy HH:mm' },
+    ],
+  }, '#grid-sesiones');
+
+  dialogDetalle = new ej.popups.Dialog({
+    header: 'Detalle de Sesion',
+    content: document.getElementById('dialog-detalle'),
+    showCloseIcon: true,
+    isModal: true,
+    width: '700px',
+    visible: false,
+  });
+  dialogDetalle.appendTo('#dialog-detalle');
+});
+
+function buildUrl() {
+  let url = '/ai/api/monitoreo/sesiones?';
+  const dir = document.getElementById('filtro-direccion')?.value;
+  const est = document.getElementById('filtro-estado')?.value;
+  const desde = document.getElementById('filtro-desde')?.value;
+  const hasta = document.getElementById('filtro-hasta')?.value;
+  if (dir) url += 'direccion=' + dir + '&';
+  if (est) url += 'estado=' + est + '&';
+  if (desde) url += 'fechaDesde=' + desde + '&';
+  if (hasta) url += 'fechaHasta=' + hasta + '&';
+  return url;
+}
+
+function recargarGrid() {
+  if (gridSesiones) {
+    gridSesiones.dataSource = new ej.data.DataManager({
+      url: buildUrl(),
+      adaptor: new ej.data.WebApiAdaptor(),
+      crossDomain: true,
+    });
+  }
+}
+
+async function verDetalle(id) {
+  const el = document.getElementById('detalle-content');
+  el.innerHTML = '<p class="text-gray-400 text-sm">Cargando...</p>';
+  dialogDetalle.header = 'Sesion #' + id;
+  dialogDetalle.show();
+
+  try {
+    const res = await fetch('/ai/api/monitoreo/sesion/' + id);
+    const data = await res.json();
+    if (!data.success) { el.innerHTML = '<p class="text-red-500">Error: ' + data.error + '</p>'; return; }
+
+    const s = data.sesion;
+    let html = '<div class="space-y-3">';
+    html += '<div class="grid grid-cols-2 gap-3 text-sm">';
+    html += '<div><span class="text-gray-500">Direccion:</span> <strong>' + (s.direccion || '') + '</strong></div>';
+    html += '<div><span class="text-gray-500">Estado:</span> <strong>' + (s.estado || '') + '</strong></div>';
+    html += '<div><span class="text-gray-500">Contacto:</span> ' + (s.nombre_contacto || 'N/A') + ' (' + (s.rol_contacto || '') + ')</div>';
+    html += '<div><span class="text-gray-500">Telefono:</span> ' + (s.telefono || 'N/A') + '</div>';
+    html += '<div><span class="text-gray-500">Viaje:</span> #' + (s.id_unidad_viaje || 'N/A') + ' ' + (s.placas_unidad || '') + '</div>';
+    html += '<div><span class="text-gray-500">Duracion:</span> ' + (s.duracion_segundos || 0) + 's</div>';
+    html += '<div><span class="text-gray-500">Prompt:</span> ' + (s.prompt_nombre || 'N/A') + '</div>';
+    html += '<div><span class="text-gray-500">VAPI ID:</span> <span class="font-mono text-xs">' + (s.vapi_call_id || 'N/A') + '</span></div>';
+    html += '</div>';
+
+    if (s.resumen) {
+      html += '<div><p class="text-xs text-gray-500 uppercase mb-1">Resumen</p><p class="text-sm bg-gray-50 p-3 rounded-lg">' + s.resumen + '</p></div>';
+    }
+
+    if (data.transcripciones && data.transcripciones.length > 0) {
+      html += '<div><p class="text-xs text-gray-500 uppercase mb-1">Transcripcion</p><div class="bg-gray-50 rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">';
+      for (const t of data.transcripciones) {
+        const color = t.rol === 'asistente' ? 'text-blue-700' : t.rol === 'usuario' ? 'text-gray-900' : 'text-gray-500';
+        html += '<div class="text-sm"><span class="font-semibold ' + color + '">' + t.rol + ':</span> ' + t.contenido + '</div>';
+      }
+      html += '</div></div>';
+    }
+
+    if (data.intenciones && data.intenciones.length > 0) {
+      html += '<div><p class="text-xs text-gray-500 uppercase mb-1">Intenciones detectadas</p><div class="space-y-1">';
+      for (const i of data.intenciones) {
+        html += '<div class="flex items-center gap-2 text-sm"><span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">' + i.tipo_intencion + '</span>';
+        html += '<span class="px-2 py-1 text-xs rounded-full ' + (i.prioridad === 'critica' ? 'bg-red-100 text-red-800' : i.prioridad === 'alta' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800') + '">' + i.prioridad + '</span>';
+        html += '<span>' + (i.descripcion || '') + '</span></div>';
+      }
+      html += '</div></div>';
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    el.innerHTML = '<p class="text-red-500">Error: ' + err.message + '</p>';
+  }
+}
+</script>
+
+<%- include('../partials/foot') %>

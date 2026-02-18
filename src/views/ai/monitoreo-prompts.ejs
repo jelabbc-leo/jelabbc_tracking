@@ -1,0 +1,196 @@
+<%- include('../partials/head') %>
+<%- include('../partials/navbar') %>
+
+<main class="p-4 sm:p-6 lg:p-8">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Prompts de Monitoreo</h1>
+      <p class="text-sm text-gray-500 mt-1">Instrucciones del asistente de voz para llamadas entrantes y salientes</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/ai/monitoreo" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Panel Monitoreo
+      </a>
+      <button onclick="mostrarFormPrompt()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Nuevo Prompt
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div id="grid-prompts"></div>
+  </div>
+</main>
+
+<!-- Dialog para crear/editar prompt -->
+<div id="dialog-prompt" style="display:none;">
+  <div class="space-y-4 p-2">
+    <input type="hidden" id="prompt-id">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+        <input id="prompt-nombre" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+          <select id="prompt-tipo" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="entrante">Entrante</option>
+            <option value="saliente">Saliente</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Subtipo</label>
+          <input id="prompt-subtipo" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="paro, operador, custom...">
+        </div>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Prompt del sistema (instrucciones para la IA)</label>
+      <textarea id="prompt-sistema" rows="10" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="Eres un asistente de voz de JELABBC..."></textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Primer mensaje (lo que dice al conectar)</label>
+      <textarea id="prompt-primer-mensaje" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Hola {{nombre_contacto}}, le llamo de JELABBC..."></textarea>
+    </div>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Idioma</label>
+        <select id="prompt-idioma" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <option value="es">Espanol</option>
+          <option value="en">English</option>
+          <option value="fr">Francais</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Orden</label>
+        <input id="prompt-orden" type="number" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div class="flex items-end">
+        <label class="flex items-center gap-2">
+          <input id="prompt-activo" type="checkbox" checked class="rounded border-gray-300 text-blue-600">
+          <span class="text-sm text-gray-700">Activo</span>
+        </label>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Notas internas</label>
+      <textarea id="prompt-notas" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+    </div>
+    <p class="text-xs text-gray-400">Placeholders disponibles: {{nombre_contacto}}, {{id_viaje}}, {{placas_unidad}}, {{numero_contenedor}}, {{ultima_ubicacion}}, {{estado_viaje}}, {{minutos_detenido}}, {{umbral}}, {{rol_contacto}}</p>
+  </div>
+</div>
+
+<script>
+let dialogPrompt = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  new ej.grids.Grid({
+    dataSource: new ej.data.DataManager({
+      url: '/ai/api/monitoreo/prompts',
+      adaptor: new ej.data.WebApiAdaptor(),
+      crossDomain: true,
+    }),
+    allowPaging: true, pageSettings: { pageSize: 15 },
+    allowSorting: true,
+    columns: [
+      { field: 'id', headerText: 'ID', width: 50, textAlign: 'Center' },
+      { field: 'nombre', headerText: 'Nombre', width: 200 },
+      { field: 'tipo', headerText: 'Tipo', width: 90, textAlign: 'Center',
+        template: '<span class="px-2 py-1 text-xs rounded-full ${tipo === "entrante" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}">${tipo}</span>' },
+      { field: 'subtipo', headerText: 'Subtipo', width: 110 },
+      { field: 'idioma', headerText: 'Idioma', width: 70, textAlign: 'Center' },
+      { field: 'activo', headerText: 'Activo', width: 70, textAlign: 'Center', type: 'boolean', displayAsCheckBox: true },
+      { field: 'orden', headerText: 'Orden', width: 60, textAlign: 'Center' },
+      { headerText: 'Acciones', width: 140, textAlign: 'Center',
+        template: '<button onclick="editarPrompt(${id})" class="px-2 py-1 bg-blue-600 text-white text-xs rounded mr-1 hover:bg-blue-700">Editar</button><button onclick="eliminarPrompt(${id})" class="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Eliminar</button>' },
+    ],
+  }, '#grid-prompts');
+
+  dialogPrompt = new ej.popups.Dialog({
+    header: 'Prompt de Monitoreo',
+    content: document.getElementById('dialog-prompt'),
+    showCloseIcon: true,
+    isModal: true,
+    width: '800px',
+    visible: false,
+    buttons: [
+      { click: guardarPrompt, buttonModel: { content: 'Guardar Prompt', isPrimary: true } },
+      { click: () => dialogPrompt.hide(), buttonModel: { content: 'Cancelar' } },
+    ],
+  });
+  dialogPrompt.appendTo('#dialog-prompt');
+});
+
+function mostrarFormPrompt(data) {
+  document.getElementById('prompt-id').value = data?.id || '';
+  document.getElementById('prompt-nombre').value = data?.nombre || '';
+  document.getElementById('prompt-tipo').value = data?.tipo || 'saliente';
+  document.getElementById('prompt-subtipo').value = data?.subtipo || '';
+  document.getElementById('prompt-sistema').value = data?.prompt_sistema || '';
+  document.getElementById('prompt-primer-mensaje').value = data?.primer_mensaje || '';
+  document.getElementById('prompt-idioma').value = data?.idioma || 'es';
+  document.getElementById('prompt-orden').value = data?.orden || 0;
+  document.getElementById('prompt-activo').checked = data?.activo !== false && data?.activo !== 0;
+  document.getElementById('prompt-notas').value = data?.notas || '';
+  dialogPrompt.header = data?.id ? 'Editar Prompt' : 'Nuevo Prompt';
+  dialogPrompt.show();
+}
+
+async function editarPrompt(id) {
+  try {
+    const res = await fetch('/ai/api/monitoreo/prompts');
+    const data = await res.json();
+    const prompt = (data.result || []).find(p => p.id === id);
+    if (prompt) mostrarFormPrompt(prompt);
+  } catch (err) {
+    alert('Error cargando prompt: ' + err.message);
+  }
+}
+
+async function guardarPrompt() {
+  const body = {
+    id: document.getElementById('prompt-id').value || null,
+    nombre: document.getElementById('prompt-nombre').value,
+    tipo: document.getElementById('prompt-tipo').value,
+    subtipo: document.getElementById('prompt-subtipo').value,
+    prompt_sistema: document.getElementById('prompt-sistema').value,
+    primer_mensaje: document.getElementById('prompt-primer-mensaje').value,
+    idioma: document.getElementById('prompt-idioma').value,
+    orden: parseInt(document.getElementById('prompt-orden').value) || 0,
+    activo: document.getElementById('prompt-activo').checked,
+    notas: document.getElementById('prompt-notas').value,
+  };
+
+  try {
+    const res = await fetch('/ai/api/monitoreo/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success) {
+      dialogPrompt.hide();
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function eliminarPrompt(id) {
+  if (!confirm('¿Eliminar este prompt?')) return;
+  try {
+    await fetch('/ai/api/monitoreo/prompt/' + id, { method: 'DELETE' });
+    location.reload();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+</script>
+
+<%- include('../partials/foot') %>

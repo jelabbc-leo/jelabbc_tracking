@@ -20,6 +20,9 @@ const PORT = process.env.PORT || 8080;
 const coordinator = require('./src/scraper/coordinator');
 const stopDetector = require('./src/ai/stop-detector');
 const vapiTrigger = require('./src/ai/vapi-trigger');
+const monitoreoIncoming = require('./src/ai/monitoreo-incoming');
+const monitoreoSync = require('./src/ai/monitoreo-sync');
+const monitoreoSesiones = require('./src/ai/monitoreo-sesiones');
 
 const CRON_EXPRESSION = process.env.CRON_SCHEDULE || '*/1 * * * *';
 let schedulerEnabled = (process.env.SCHEDULER_ENABLED || 'true') !== 'false';
@@ -180,6 +183,36 @@ app.post('/api/ai/toggle-detection', requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Webhook VAPI para llamadas entrantes (Fase 6)
+// Este endpoint recibe eventos de VAPI: assistant-request, end-of-call-report,
+// status-update, transcript. NO requiere auth porque VAPI lo llama directamente.
+// ---------------------------------------------------------------------------
+
+app.post('/api/webhooks/vapi-monitoreo', async (req, res) => {
+  try {
+    const result = await monitoreoIncoming.handleWebhook(req.body);
+    if (result) {
+      res.json(result);
+    } else {
+      res.json({ ok: true });
+    }
+  } catch (err) {
+    console.error('[Webhook VAPI Monitoreo] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sync manual de numeros autorizados
+app.post('/api/monitoreo/sync-numbers', requireAuth, async (req, res) => {
+  try {
+    const result = await monitoreoSync.syncNumbers();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Error handler
 // ---------------------------------------------------------------------------
 app.use((err, req, res, _next) => {
@@ -246,6 +279,20 @@ const schedulerTask = cron.schedule(CRON_EXPRESSION, async () => {
         `[Scheduler] Ciclo completado: ${result.providersSuccess}/${processed} OK, ` +
         `${result.totalNewCoords} coords nuevas en ${(result.durationMs / 1000).toFixed(1)}s`
       );
+    }
+
+    // --- Fase 6: Sync numeros autorizados (cada ciclo del cron) ---
+    try {
+      await monitoreoSync.syncNumbers();
+    } catch (syncErr) {
+      console.error('[Monitoreo] Error en sync numeros:', syncErr.message);
+    }
+
+    // --- Fase 6: Watchdog de sesiones zombie (cada ciclo) ---
+    try {
+      await monitoreoSesiones.marcarZombies(15);
+    } catch (wdErr) {
+      console.error('[Monitoreo] Error en watchdog:', wdErr.message);
     }
 
     // --- Fase 3: Deteccion de paros IA ---

@@ -29,6 +29,8 @@
 const axios = require('axios');
 const { internalClient: api } = require('../api/client');
 const stopDetector = require('./stop-detector');
+const monitoreoPrompts = require('./monitoreo-prompts');
+const monitoreoSesiones = require('./monitoreo-sesiones');
 
 const LOG_PREFIX = '[VapiTrigger]';
 
@@ -267,8 +269,54 @@ async function _makeCallVapiDirect(alert, contact, motivo, protocol) {
   try {
     const idioma = protocol?.idioma || 'es';
     const customInstructions = protocol?.protocolo_texto || '';
-    const systemPrompt = _buildSystemPrompt(alert, contact, motivo, idioma, customInstructions);
-    const firstMessage = _buildFirstMessage(alert, contact, idioma);
+
+    // Determinar subtipo de prompt segun el rol del contacto
+    const subtipo = (contact.tipo_contacto === 'operador') ? 'paro' : 'escalamiento';
+
+    // Contexto extra para escalamiento
+    const extra = {};
+    if (subtipo === 'escalamiento') {
+      extra.resumen_operador = motivo.includes('lo que dijo')
+        ? motivo.split('"')[1] || ''
+        : '';
+      extra.contexto_operador = motivo.includes('NO respondio')
+        ? 'Se intento contactar al operador pero no respondio la llamada.'
+        : `Se contacto al operador y esto reporto: "${extra.resumen_operador}"`;
+    }
+
+    // Intentar cargar prompt de BD; si no hay, usar hardcoded como fallback
+    const resolved = await monitoreoPrompts.getResolvedPrompt('saliente', subtipo, {
+      trip: alert.tripInfo,
+      contact,
+      alert,
+      extra,
+    });
+
+    let systemPrompt, firstMessage;
+    if (resolved) {
+      systemPrompt = resolved.systemPrompt;
+      firstMessage = resolved.firstMessage;
+      if (customInstructions) {
+        systemPrompt += `\n\nINSTRUCCIONES ADICIONALES:\n${customInstructions}`;
+      }
+      log('info', `Usando prompt de BD: "${resolved.raw.nombre}" (id=${resolved.raw.id})`);
+    } else {
+      systemPrompt = _buildSystemPrompt(alert, contact, motivo, idioma, customInstructions);
+      firstMessage = _buildFirstMessage(alert, contact, idioma);
+      log('info', 'Usando prompt hardcoded (fallback)');
+    }
+
+    // Registrar sesion de monitoreo
+    const sesionId = await monitoreoSesiones.crearSesion({
+      direccion: 'saliente',
+      telefono: contact.telefono,
+      telefonoE164: _normalizePhoneNumber(contact.telefono),
+      nombreContacto: contact.nombre || contact.nombre_contacto,
+      rolContacto: contact.tipo_contacto,
+      idUnidadViaje: alert.tripId,
+      promptId: resolved?.raw?.id || null,
+      motivo: `Paro detectado: ${alert.stoppedMinutes} min`,
+    });
 
     // Construir payload para POST https://api.vapi.ai/call
     const payload = {
@@ -375,17 +423,22 @@ async function _makeCallVapiDirect(alert, contact, motivo, protocol) {
     const endTime = new Date();
     const durationSecs = Math.round((endTime - startTime) / 1000);
 
-    // VAPI procesa la llamada de forma asincrona.
-    // Statuses posibles: queued, ringing, in-progress, forwarding, ended
-    // Si VAPI acepto la llamada (201), la consideramos en proceso.
-    // El resultado final llega via webhook (end-of-call-report).
+    // Actualizar sesion de monitoreo con el vapi_call_id
+    if (sesionId) {
+      await monitoreoSesiones.actualizarSesion(sesionId, {
+        vapi_call_id: callId,
+        estado: 'en_curso',
+      });
+    }
+
     return {
-      answered: true, // VAPI acepto y esta procesando la llamada
+      answered: true,
       resultado: 'atendida',
       duracion: callData?.duration || durationSecs,
       resumen: `Llamada VAPI creada (ID: ${callId}). Status: ${status}`,
       vapiCallId: callId,
       vapiStatus: status,
+      sesionId,
     };
   } catch (err) {
     const status = err.response?.status;
@@ -399,11 +452,17 @@ async function _makeCallVapiDirect(alert, contact, motivo, protocol) {
       log('error', 'VAPI detalle:', JSON.stringify(errorData).substring(0, 500));
     }
 
+    // Marcar sesion como fallida
+    if (sesionId) {
+      await monitoreoSesiones.fallarSesion(sesionId, errorMsg);
+    }
+
     return {
       answered: false,
       resultado: 'error',
       duracion: 0,
       resumen: `Error VAPI (HTTP ${status || '?'}): ${errorMsg}`,
+      sesionId,
     };
   }
 }

@@ -1,0 +1,167 @@
+<%- include('../partials/head') %>
+<%- include('../partials/navbar') %>
+
+<main class="p-4 sm:p-6 lg:p-8">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Sistema de Monitoreo IA</h1>
+      <p class="text-sm text-gray-500 mt-1">Gestion de llamadas entrantes/salientes, prompts, sesiones e intenciones</p>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <a href="/ai" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Config IA clasica
+      </a>
+      <button onclick="syncNumbers()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Sync Numeros
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div id="stats-cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Sesiones hoy</p>
+      <p id="stat-sesiones" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Entrantes</p>
+      <p id="stat-entrantes" class="text-2xl font-bold text-blue-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Salientes</p>
+      <p id="stat-salientes" class="text-2xl font-bold text-green-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Intenciones pendientes</p>
+      <p id="stat-intenciones" class="text-2xl font-bold text-orange-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Numeros activos</p>
+      <p id="stat-numeros" class="text-2xl font-bold text-purple-600 mt-1">-</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Prompts activos</p>
+      <p id="stat-prompts" class="text-2xl font-bold text-gray-600 mt-1">-</p>
+    </div>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
+    <div class="border-b border-gray-200">
+      <nav class="flex -mb-px">
+        <a href="/ai/monitoreo/sesiones" class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent">
+          Sesiones
+        </a>
+        <a href="/ai/monitoreo/prompts" class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent">
+          Prompts
+        </a>
+        <a href="/ai/calls" class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent">
+          Llamadas IA (clasico)
+        </a>
+        <a href="/ai" class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent">
+          Configuracion IA
+        </a>
+      </nav>
+    </div>
+
+    <div class="p-6">
+      <!-- Intenciones pendientes (urgentes primero) -->
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Intenciones pendientes</h2>
+      <div id="grid-intenciones"></div>
+
+      <!-- Eventos recientes -->
+      <h2 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Eventos recientes del sistema</h2>
+      <div id="grid-eventos"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  loadStats();
+
+  // Grid de intenciones pendientes
+  new ej.grids.Grid({
+    dataSource: new ej.data.DataManager({
+      url: '/ai/api/monitoreo/intenciones?estado=pendiente',
+      adaptor: new ej.data.WebApiAdaptor(),
+      crossDomain: true,
+    }),
+    allowPaging: true, pageSettings: { pageSize: 10 },
+    allowSorting: true,
+    columns: [
+      { field: 'id', headerText: 'ID', width: 60, textAlign: 'Center' },
+      { field: 'tipo_intencion', headerText: 'Tipo', width: 130,
+        template: '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">${tipo_intencion}</span>' },
+      { field: 'prioridad', headerText: 'Prioridad', width: 100, textAlign: 'Center',
+        template: '<span class="px-2 py-1 text-xs font-semibold rounded-full ${prioridad === "critica" ? "bg-red-100 text-red-800" : prioridad === "alta" ? "bg-orange-100 text-orange-800" : prioridad === "media" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"}">${prioridad}</span>' },
+      { field: 'descripcion', headerText: 'Descripcion', width: 300 },
+      { field: 'placas_unidad', headerText: 'Unidad', width: 100 },
+      { field: 'nombre_contacto', headerText: 'Contacto', width: 120 },
+      { field: 'creado_en', headerText: 'Fecha', width: 150, type: 'datetime', format: 'dd/MM/yyyy HH:mm' },
+      { headerText: 'Accion', width: 100, textAlign: 'Center',
+        template: '<button onclick="procesarIntencion(${id})" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Procesar</button>' },
+    ],
+  }, '#grid-intenciones');
+
+  // Grid de eventos recientes
+  new ej.grids.Grid({
+    dataSource: new ej.data.DataManager({
+      url: '/ai/api/monitoreo/eventos',
+      adaptor: new ej.data.WebApiAdaptor(),
+      crossDomain: true,
+    }),
+    allowPaging: true, pageSettings: { pageSize: 10 },
+    columns: [
+      { field: 'id', headerText: 'ID', width: 60, textAlign: 'Center' },
+      { field: 'tipo', headerText: 'Tipo', width: 150 },
+      { field: 'descripcion', headerText: 'Descripcion', width: 400 },
+      { field: 'creado_en', headerText: 'Fecha', width: 150, type: 'datetime', format: 'dd/MM/yyyy HH:mm:ss' },
+    ],
+  }, '#grid-eventos');
+});
+
+async function loadStats() {
+  try {
+    const res = await fetch('/ai/api/monitoreo/stats');
+    const data = await res.json();
+    document.getElementById('stat-sesiones').textContent = data.sesionesHoy?.total || 0;
+    document.getElementById('stat-entrantes').textContent = data.sesionesHoy?.entrantes || 0;
+    document.getElementById('stat-salientes').textContent = data.sesionesHoy?.salientes || 0;
+    document.getElementById('stat-intenciones').textContent = data.intencionesHoy?.pendientes || 0;
+    document.getElementById('stat-numeros').textContent = data.numerosActivos || 0;
+    document.getElementById('stat-prompts').textContent = data.promptsActivos || 0;
+  } catch (err) {
+    console.error('Error cargando stats:', err);
+  }
+}
+
+async function syncNumbers() {
+  try {
+    const res = await fetch('/ai/api/monitoreo/sync-numbers', { method: 'POST' });
+    const data = await res.json();
+    alert('Sync completado: ' + data.inserted + ' nuevos, ' + data.updated + ' actualizados, ' + data.deactivated + ' desactivados');
+    loadStats();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function procesarIntencion(id) {
+  const notas = prompt('Notas de procesamiento (opcional):');
+  try {
+    await fetch('/ai/api/monitoreo/intencion/' + id + '/procesar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notas: notas || '' }),
+    });
+    location.reload();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+</script>
+
+<%- include('../partials/foot') %>
