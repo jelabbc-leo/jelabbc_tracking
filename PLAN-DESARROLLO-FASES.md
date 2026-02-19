@@ -136,3 +136,5 @@ Documento para ir marcando el avance de cada fase. Marca con `[x]` al completar.
 | 8    | Amazon Alexa                         | 0/5    | Pendiente   |
 
 Marca con `[x]` al completar cada tarea.
+
+Nota (2026-02-19): Se actualizó la configuración de Copilot con `copilot-instructions.md`, 4 archivos en `.github/instructions/` y 4 archivos en `.github/prompts/`.
