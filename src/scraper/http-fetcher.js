@@ -244,6 +244,12 @@ function _parseMicodusResponse(data) {
   let payload = data;
   if (data && data.d !== undefined) {
     payload = data.d;
+
+    if (typeof payload === 'string') {
+      log('info', `Micodus parser: raw d type=string length=${payload.length}`);
+      log('info', `Micodus parser: raw d first500=${payload.substring(0, 500)}`);
+      log('info', `Micodus parser: raw d last200=${payload.substring(Math.max(0, payload.length - 200))}`);
+    }
   }
 
   // Si es string, intentar parsear como JSON
@@ -255,7 +261,8 @@ function _parseMicodusResponse(data) {
         log('info', 'Micodus parser: detectado double-encoding en d, haciendo segundo JSON.parse');
         try {
           payload = JSON.parse(payload);
-        } catch {
+        } catch (doubleParseErr) {
+          log('warn', `Micodus parser: segundo JSON.parse FALLO: ${doubleParseErr.message}`);
           const found = coordDetector.detectFromText(payload);
           for (const c of found) {
             c.source = 'http_micodus';
@@ -273,9 +280,12 @@ function _parseMicodusResponse(data) {
         log('info', `Micodus parser: keys=${allKeys}`);
         log('info', `Micodus parser: parsed-preview=${JSON.stringify(payload).substring(0, 1500)}`);
       }
-    } catch {
+    } catch (parseErr) {
+      log('warn', `Micodus parser: JSON.parse FALLO: ${parseErr.message}`);
+      log('info', `Micodus parser: intentando coord-detector sobre string raw (length=${payload.length})`);
       // Intentar extraer de texto con coord-detector
       const found = coordDetector.detectFromText(payload);
+      log('info', `Micodus parser: coord-detector encontro ${found.length} coords en raw string`);
       for (const c of found) {
         c.source = 'http_micodus';
         coords.push(c);
