@@ -145,28 +145,64 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
   ];
 
   let responseData = null;
+  let responseMeta = null;
+
+  const safePreview = (value, max = 500) => {
+    try {
+      const text = typeof value === 'string' ? value : JSON.stringify(value);
+      if (!text) return '';
+      return text.length > max ? text.substring(0, max) + '...' : text;
+    } catch {
+      return '[unserializable]';
+    }
+  };
 
   for (const body of bodies) {
+    const bodyIndex = bodies.indexOf(body) + 1;
     try {
+      log('info', `Micodus AJAX intento #${bodyIndex}: body=${JSON.stringify(body)} token=${accessToken.substring(0, 8)}... cookies=${cookies ? 'si' : 'no'}`);
+
       const res = await axios.post(ajaxUrl, JSON.stringify(body), {
         timeout: timeoutMs,
         headers: {
           ..._browserHeaders(),
           'Content-Type': 'application/json; charset=utf-8',
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
           'X-Requested-With': 'XMLHttpRequest',
+          'Origin': baseUrl,
           'Referer': shareUrl,
           ...(cookies ? { 'Cookie': cookies } : {}),
         },
         validateStatus: (s) => s < 500,
       });
 
+      const contentType = res.headers && (res.headers['content-type'] || res.headers['Content-Type']) || 'unknown';
+      const rawPreview = safePreview(res.data, 500);
+      let keys = [];
+      let payloadType = Array.isArray(res.data) ? 'array' : typeof res.data;
+      if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+        keys = Object.keys(res.data).slice(0, 15);
+      }
+
+      if (res.data && res.data.d !== undefined) {
+        const dVal = res.data.d;
+        payloadType = `asmx.d(${Array.isArray(dVal) ? 'array' : typeof dVal})`;
+        if (dVal && typeof dVal === 'object' && !Array.isArray(dVal)) {
+          keys = Object.keys(dVal).slice(0, 15);
+        }
+      }
+
+      log('info', `Micodus AJAX intento #${bodyIndex}: status=${res.status} content-type=${contentType} payloadType=${payloadType} keys=${keys.join(',') || 'none'}`);
+      log('info', `Micodus AJAX intento #${bodyIndex}: response-preview=${rawPreview}`);
+
       if (res.status === 200 && res.data) {
         responseData = res.data;
-        log('info', `Micodus: AJAX respondio OK con body #${bodies.indexOf(body) + 1}`);
+        responseMeta = { bodyIndex, payloadType, keys };
+        log('info', `Micodus: AJAX respondio OK con body #${bodyIndex}`);
         break;
       }
     } catch (err) {
-      log('warn', `Micodus: AJAX fallo con body #${bodies.indexOf(body) + 1}: ${err.message}`);
+      log('warn', `Micodus: AJAX fallo con body #${bodyIndex}: ${err.message}`);
     }
   }
 
@@ -176,6 +212,12 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
 
   // 4. Parsear la respuesta
   const coords = _parseMicodusResponse(responseData);
+
+  if (coords.length === 0) {
+    const payloadType = responseMeta && responseMeta.payloadType ? responseMeta.payloadType : 'unknown';
+    const keys = responseMeta && responseMeta.keys ? responseMeta.keys.join(',') : 'none';
+    log('warn', `Micodus: 0 coordenadas parseadas. Motivo probable: payload sin lat/lng validos. payloadType=${payloadType} keys=${keys}`);
+  }
 
   log('info', `Micodus: ${coords.length} coordenadas extraidas`);
 
