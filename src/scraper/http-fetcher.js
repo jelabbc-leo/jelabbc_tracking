@@ -147,7 +147,7 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
   let responseData = null;
   let responseMeta = null;
 
-  const safePreview = (value, max = 500) => {
+  const safePreview = (value, max = 1500) => {
     try {
       const text = typeof value === 'string' ? value : JSON.stringify(value);
       if (!text) return '';
@@ -177,7 +177,7 @@ async function _fetchMicodus(shareUrl, timeoutMs) {
       });
 
       const contentType = res.headers && (res.headers['content-type'] || res.headers['Content-Type']) || 'unknown';
-      const rawPreview = safePreview(res.data, 500);
+      const rawPreview = safePreview(res.data);
       let keys = [];
       let payloadType = Array.isArray(res.data) ? 'array' : typeof res.data;
       if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
@@ -250,6 +250,29 @@ function _parseMicodusResponse(data) {
   if (typeof payload === 'string') {
     try {
       payload = JSON.parse(payload);
+
+      if (typeof payload === 'string') {
+        log('info', 'Micodus parser: detectado double-encoding en d, haciendo segundo JSON.parse');
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          const found = coordDetector.detectFromText(payload);
+          for (const c of found) {
+            c.source = 'http_micodus';
+            coords.push(c);
+          }
+          return coords;
+        }
+      }
+
+      log('info', `Micodus parser: after unwrap, type=${typeof payload}, isArray=${Array.isArray(payload)}`);
+      if (payload && typeof payload === 'object') {
+        const allKeys = Array.isArray(payload)
+          ? (payload ? Object.keys(payload).join(',') : 'empty_array')
+          : Object.keys(payload).join(',');
+        log('info', `Micodus parser: keys=${allKeys}`);
+        log('info', `Micodus parser: parsed-preview=${JSON.stringify(payload).substring(0, 1500)}`);
+      }
     } catch {
       // Intentar extraer de texto con coord-detector
       const found = coordDetector.detectFromText(payload);
@@ -267,8 +290,18 @@ function _parseMicodusResponse(data) {
   for (const item of items) {
     if (!item || typeof item !== 'object') continue;
 
-    const lat = parseFloat(item.lat || item.latitude || item.Lat || item.LAT);
-    const lng = parseFloat(item.lng || item.lon || item.longitude || item.Lng || item.LON);
+    const lat = parseFloat(
+      item.lat || item.latitude || item.Lat || item.LAT ||
+      item.flat || item.fLat || item.Latitude ||
+      item.gpslat || item.gpsLat || item.GPS_Lat ||
+      item.lastLat || item.last_lat || item.device_lat
+    );
+    const lng = parseFloat(
+      item.lng || item.lon || item.longitude || item.Lng || item.LON ||
+      item.flng || item.fLng || item.Longitude || item.flon || item.fLon ||
+      item.gpslon || item.gpsLng || item.GPS_Lng || item.GPS_Lon ||
+      item.lastLng || item.last_lng || item.last_lon || item.device_lng
+    );
 
     if (isNaN(lat) || isNaN(lng)) continue;
     if (!coordDetector.isValidPair(lat, lng)) continue;
@@ -289,6 +322,19 @@ function _parseMicodusResponse(data) {
     if (item.satellite !== undefined) coord.satellites = parseInt(item.satellite);
 
     coords.push(coord);
+  }
+
+  if (coords.length === 0 && payload) {
+    const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    log('info', 'Micodus parser: 0 coords del parser de campos, intentando coord-detector como fallback');
+    const found = coordDetector.detectFromText(payloadStr);
+    for (const c of found) {
+      c.source = 'http_micodus_fallback';
+      coords.push(c);
+    }
+    if (found.length > 0) {
+      log('info', `Micodus parser: coord-detector encontro ${found.length} coords como fallback`);
+    }
   }
 
   return coords;
